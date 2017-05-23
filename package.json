@@ -1,0 +1,15 @@
+{
+  "name": "assemblyscript",
+  "description": "A subset of TypeScript that compiles to WebAssembly.",
+  "version": "0.0.1",
+  "author": "Daniel Wirtz <dcode+assemblyscript@dcode.io>",
+  "dependencies": {
+    "@types/node": "^7.0.22",
+    "byots": "^2.4.0-dev.20170519.2.10",
+    "ts-node": "^3.0.4",
+    "typescript": "^2.4.0-dev.20170523"
+  },
+  "scripts": {
+    "test": "ts-node src/compiler.ts tests/test.ts"
+  }
+}

@@ -1,0 +1,4 @@
+#!/usr/bin/env ts-node
+import { Compiler } from "../compiler";
+
+const compiler = Compiler.compile(process.argv[2]);
