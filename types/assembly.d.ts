@@ -44,6 +44,7 @@ declare class IntPtr<T extends number | object> {
 declare function sizeof<T>(): intptr;
 
 declare function sizeof<byte>()   : 1;
+declare function sizeof<sbyte>()  : 1;
 declare function sizeof<short>()  : 2;
 declare function sizeof<ushort>() : 2;
 declare function sizeof<int>()    : 4;
