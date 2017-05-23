@@ -25,138 +25,210 @@ declare module binaryen {
     dispose(): void;
 
     i32: {
-      load(offset: number, align: number, ptr: number): OpCode,
-      load8_s(offset: number, align: number, ptr: number): OpCode,
-      load8_u(offset: number, align: number, ptr: number): OpCode
-      load16_s(offset: number, align: number, ptr: number): OpCode,
-      load16_u(offset: number, align: number, ptr: number): OpCode,
-      store(offset: number, align: number, ptr: number, value: Expression): OpCode,
-      store8(offset: number, align: number, ptr: number, value: Expression): OpCode,
-      store16(offset: number, align: number, ptr: number, value: Expression): OpCode,
-      const(value: number): OpCode;
-      clz(value: Expression): OpCode;
-      ctz(value: Expression): OpCode;
-      popcnt(value: Expression): OpCode;
-      eqz(value: Expression): OpCode;
+      load(offset: number, align: number, ptr: number): I32Expression,
+      load8_s(offset: number, align: number, ptr: number): I32Expression,
+      load8_u(offset: number, align: number, ptr: number): I32Expression
+      load16_s(offset: number, align: number, ptr: number): I32Expression,
+      load16_u(offset: number, align: number, ptr: number): I32Expression,
+      store(offset: number, align: number, ptr: number, value: I32Expression): I32Expression,
+      store8(offset: number, align: number, ptr: number, value: I32Expression): I32Expression,
+      store16(offset: number, align: number, ptr: number, value: I32Expression): I32Expression,
+      const(value: number): I32Expression;
+      clz(value: I32Expression): I32Expression;
+      ctz(value: I32Expression): I32Expression;
+      popcnt(value: I32Expression): I32Expression;
+      eqz(value: I32Expression): I32Expression;
       trunc_s: {
-        f32(value: Expression): OpCode;
-        f64(value: Expression): OpCode;
+        f32(value: F32Expression): I32Expression;
+        f64(value: F64Expression): I32Expression;
       };
       trunc_u: {
-        f32(value: Expression): OpCode;
-        f64(value: Expression): OpCode;
+        f32(value: F32Expression): I32Expression;
+        f64(value: F64Expression): I32Expression;
       }
-      reinterpret(value: Expression): OpCode;
-      wrap(value: Expression): OpCode;
-      add(left: Expression, right: Expression): OpCode;
-      sub(left: Expression, right: Expression): OpCode;
-      mul(left: Expression, right: Expression): OpCode;
-      div_s(left: Expression, right: Expression): OpCode;
-      div_u(left: Expression, right: Expression): OpCode;
-      rem_s(left: Expression, right: Expression): OpCode;
-      rem_u(left: Expression, right: Expression): OpCode;
-      and(left: Expression, right: Expression): OpCode;
-      or(left: Expression, right: Expression): OpCode;
-      xor(left: Expression, right: Expression): OpCode;
-      shl(left: Expression, right: Expression): OpCode;
-      shr_u(left: Expression, right: Expression): OpCode;
-      shr_s(left: Expression, right: Expression): OpCode;
-      rotl(left: Expression, right: Expression): OpCode;
-      rotr(left: Expression, right: Expression): OpCode;
-      eq(left: Expression, right: Expression): OpCode;
-      ne(left: Expression, right: Expression): OpCode;
-      lt_s(left: Expression, right: Expression): OpCode;
-      lt_u(left: Expression, right: Expression): OpCode;
-      le_s(left: Expression, right: Expression): OpCode;
-      le_u(left: Expression, right: Expression): OpCode;
-      gt_s(left: Expression, right: Expression): OpCode;
-      gt_u(left: Expression, right: Expression): OpCode;
-      ge_s(left: Expression, right: Expression): OpCode;
-      ge_u(left: Expression, right: Expression): OpCode;
+      reinterpret(value: F32Expression): I32Expression;
+      wrap(value: I64Expression): I32Expression;
+      add(left: I32Expression, right: I32Expression): I32Expression;
+      sub(left: I32Expression, right: I32Expression): I32Expression;
+      mul(left: I32Expression, right: I32Expression): I32Expression;
+      div_s(left: I32Expression, right: I32Expression): I32Expression;
+      div_u(left: I32Expression, right: I32Expression): I32Expression;
+      rem_s(left: I32Expression, right: I32Expression): I32Expression;
+      rem_u(left: I32Expression, right: I32Expression): I32Expression;
+      and(left: I32Expression, right: I32Expression): I32Expression;
+      or(left: I32Expression, right: I32Expression): I32Expression;
+      xor(left: I32Expression, right: I32Expression): I32Expression;
+      shl(left: I32Expression, right: I32Expression): I32Expression;
+      shr_u(left: I32Expression, right: I32Expression): I32Expression;
+      shr_s(left: I32Expression, right: I32Expression): I32Expression;
+      rotl(left: I32Expression, right: I32Expression): I32Expression;
+      rotr(left: I32Expression, right: I32Expression): I32Expression;
+      eq(left: I32Expression, right: I32Expression): I32Expression;
+      ne(left: I32Expression, right: I32Expression): I32Expression;
+      lt_s(left: I32Expression, right: I32Expression): I32Expression;
+      lt_u(left: I32Expression, right: I32Expression): I32Expression;
+      le_s(left: I32Expression, right: I32Expression): I32Expression;
+      le_u(left: I32Expression, right: I32Expression): I32Expression;
+      gt_s(left: I32Expression, right: I32Expression): I32Expression;
+      gt_u(left: I32Expression, right: I32Expression): I32Expression;
+      ge_s(left: I32Expression, right: I32Expression): I32Expression;
+      ge_u(left: I32Expression, right: I32Expression): I32Expression;
     }
 
     i64: {
-      load(offset: number, align: number, ptr: number): OpCode,
-      load8_s(offset: number, align: number, ptr: number): OpCode,
-      load8_u(offset: number, align: number, ptr: number): OpCode
-      load16_s(offset: number, align: number, ptr: number): OpCode,
-      load16_u(offset: number, align: number, ptr: number): OpCode,
-      load32_s(offset: number, align: number, ptr: number): OpCode,
-      load32_u(offset: number, align: number, ptr: number): OpCode,
-      store(offset: number, align: number, ptr: number, value: Expression): OpCode,
-      store8(offset: number, align: number, ptr: number, value: Expression): OpCode,
-      store16(offset: number, align: number, ptr: number, value: Expression): OpCode,
-      store32(offset: number, align: number, ptr: number, value: Expression): OpCode,
-      const(low: number, right: number): OpCode;
-      clz(value: Expression): OpCode;
-      ctz(value: Expression): OpCode;
-      popcnt(value: Expression): OpCode;
-      eqz(value: Expression): OpCode;
+      load(offset: number, align: number, ptr: number): I64Expression,
+      load8_s(offset: number, align: number, ptr: number): I64Expression,
+      load8_u(offset: number, align: number, ptr: number): I64Expression
+      load16_s(offset: number, align: number, ptr: number): I64Expression,
+      load16_u(offset: number, align: number, ptr: number): I64Expression,
+      load32_s(offset: number, align: number, ptr: number): I64Expression,
+      load32_u(offset: number, align: number, ptr: number): I64Expression,
+      store(offset: number, align: number, ptr: number, value: I64Expression): I64Expression,
+      store8(offset: number, align: number, ptr: number, value: I64Expression): I64Expression,
+      store16(offset: number, align: number, ptr: number, value: I64Expression): I64Expression,
+      store32(offset: number, align: number, ptr: number, value: I64Expression): I64Expression,
+      const(low: number, right: number): I64Expression;
+      clz(value: I64Expression): I64Expression;
+      ctz(value: I64Expression): I64Expression;
+      popcnt(value: I64Expression): I64Expression;
+      eqz(value: I64Expression): I64Expression;
       trunc_s: {
-        f32(value: Expression): OpCode;
-        f64(value: Expression): OpCode;
+        f32(value: F32Expression): I64Expression;
+        f64(value: F64Expression): I64Expression;
       };
       trunc_u: {
-        f32(value: Expression): OpCode;
-        f64(value: Expression): OpCode;
+        f32(value: F32Expression): I64Expression;
+        f64(value: F64Expression): I64Expression;
       }
-      reinterpret(value: Expression): OpCode;
-      extend_s(value: Expression): OpCode;
-      extend_u(value: Expression): OpCode;
-      wrap(value: Expression): OpCode;
-      add(left: Expression, right: Expression): OpCode;
-      sub(left: Expression, right: Expression): OpCode;
-      mul(left: Expression, right: Expression): OpCode;
-      div_s(left: Expression, right: Expression): OpCode;
-      div_u(left: Expression, right: Expression): OpCode;
-      rem_s(left: Expression, right: Expression): OpCode;
-      rem_u(left: Expression, right: Expression): OpCode;
-      and(left: Expression, right: Expression): OpCode;
-      or(left: Expression, right: Expression): OpCode;
-      xor(left: Expression, right: Expression): OpCode;
-      shl(left: Expression, right: Expression): OpCode;
-      shr_u(left: Expression, right: Expression): OpCode;
-      shr_s(left: Expression, right: Expression): OpCode;
-      rotl(left: Expression, right: Expression): OpCode;
-      rotr(left: Expression, right: Expression): OpCode;
-      eq(left: Expression, right: Expression): OpCode;
-      ne(left: Expression, right: Expression): OpCode;
-      lt_s(left: Expression, right: Expression): OpCode;
-      lt_u(left: Expression, right: Expression): OpCode;
-      le_s(left: Expression, right: Expression): OpCode;
-      le_u(left: Expression, right: Expression): OpCode;
-      gt_s(left: Expression, right: Expression): OpCode;
-      gt_u(left: Expression, right: Expression): OpCode;
-      ge_s(left: Expression, right: Expression): OpCode;
-      ge_u(left: Expression, right: Expression): OpCode;
+      reinterpret(value: F64Expression): I64Expression;
+      extend_s(value: I32Expression): I64Expression;
+      extend_u(value: I32Expression): I64Expression;
+      add(left: I64Expression, right: I64Expression): I64Expression;
+      sub(left: I64Expression, right: I64Expression): I64Expression;
+      mul(left: I64Expression, right: I64Expression): I64Expression;
+      div_s(left: I64Expression, right: I64Expression): I64Expression;
+      div_u(left: I64Expression, right: I64Expression): I64Expression;
+      rem_s(left: I64Expression, right: I64Expression): I64Expression;
+      rem_u(left: I64Expression, right: I64Expression): I64Expression;
+      and(left: I64Expression, right: I64Expression): I64Expression;
+      or(left: I64Expression, right: I64Expression): I64Expression;
+      xor(left: I64Expression, right: I64Expression): I64Expression;
+      shl(left: I64Expression, right: I64Expression): I64Expression;
+      shr_u(left: I64Expression, right: I64Expression): I64Expression;
+      shr_s(left: I64Expression, right: I64Expression): I64Expression;
+      rotl(left: I64Expression, right: I64Expression): I64Expression;
+      rotr(left: I64Expression, right: I64Expression): I64Expression;
+      eq(left: I64Expression, right: I64Expression): I64Expression;
+      ne(left: I64Expression, right: I64Expression): I64Expression;
+      lt_s(left: I64Expression, right: I64Expression): I64Expression;
+      lt_u(left: I64Expression, right: I64Expression): I64Expression;
+      le_s(left: I64Expression, right: I64Expression): I64Expression;
+      le_u(left: I64Expression, right: I64Expression): I64Expression;
+      gt_s(left: I64Expression, right: I64Expression): I64Expression;
+      gt_u(left: I64Expression, right: I64Expression): I64Expression;
+      ge_s(left: I64Expression, right: I64Expression): I64Expression;
+      ge_u(left: I64Expression, right: I64Expression): I64Expression;
     }
 
-    // TODO: f32, f64
+    f32: {
+      load(offset: number, align: number, ptr: number): F32Expression;
+      store(offset: number, align: number, ptr: number, value: F32Expression): F32Expression;
+      const(value: number): F32Expression;
+      const_bits(value: number): F32Expression;
+      neg(value: F32Expression): F32Expression;
+      abs(value: F32Expression): F32Expression;
+      ceil(value: F32Expression): F32Expression;
+      floor(value: F32Expression): F32Expression;
+      trunc(value: F32Expression): F32Expression;
+      nearest(value: F32Expression): F32Expression;
+      sqrt(value: F32Expression): F32Expression;
+      reinterpret(value: I32Expression): F32Expression;
+      convert_s: {
+        i32(value: I32Expression): F32Expression;
+        i64(value: I64Expression): F32Expression;
+      };
+      convert_u: {
+        i32(value: I32Expression): F32Expression;
+        i64(value: I64Expression): F32Expression;
+      };
+      demote(value: F64Expression): F32Expression;
+      add(left: F32Expression, right: F32Expression): F32Expression;
+      sub(left: F32Expression, right: F32Expression): F32Expression;
+      mul(left: F32Expression, right: F32Expression): F32Expression;
+      div(left: F32Expression, right: F32Expression): F32Expression;
+      copysign(left: F32Expression, right: F32Expression): F32Expression;
+      min(left: F32Expression, right: F32Expression): F32Expression;
+      max(left: F32Expression, right: F32Expression): F32Expression;
+      eq(left: F32Expression, right: F32Expression): F32Expression;
+      ne(left: F32Expression, right: F32Expression): F32Expression;
+      lt(left: F32Expression, right: F32Expression): F32Expression;
+      le(left: F32Expression, right: F32Expression): F32Expression;
+      gt(left: F32Expression, right: F32Expression): F32Expression;
+      ge(left: F32Expression, right: F32Expression): F32Expression;
+    };
 
-    block(label: string, children: Statement[]): OpCode;
-    if(condition: Expression, ifTrue: Statement, ifFalse: Statement): OpCode;
-    loop(label: string, body: Statement): OpCode;
-    break(label: string, condition: Expression, value?: Expression): OpCode;
-    switch(labels: string[], defaultLabel: string, condition: Expression, value?: Expression): OpCode;
-    call(name: string, operands: Expression[], type: Type): OpCode;
-    callIndirect(target: Expression, operands: Expression[], type: Type): OpCode;
-    getLocal(index: number, type: Type): OpCode;
-    setLocal(index: number, value: Expression): OpCode;
-    teeLocal(index: number, value: Expression): OpCode;
-    select(condition: Expression, ifTrue: Expression, ifFalse: Expression): OpCode;
-    drop(value: Expression): OpCode;
-    return(value?: Expression): OpCode;
-    nop(): OpCode;
-    unreachable(): OpCode;
+    f64: {
+      load(offset: number, align: number, ptr: number): F64Expression;
+      store(offset: number, align: number, ptr: number, value: F32Expression): F64Expression;
+      const(value: number): F64Expression;
+      const_bits(low: number, high: number): F64Expression;
+      neg(value: F64Expression): F64Expression;
+      abs(value: F64Expression): F64Expression;
+      ceil(value: F64Expression): F64Expression;
+      floor(value: F64Expression): F64Expression;
+      trunc(value: F64Expression): F64Expression;
+      nearest(value: F64Expression): F64Expression;
+      sqrt(value: F64Expression): F64Expression;
+      reinterpret(value: I32Expression): F64Expression;
+      convert_s: {
+        i32(value: I32Expression): F64Expression;
+        i64(value: I64Expression): F64Expression;
+      };
+      convert_u: {
+        i32(value: I32Expression): F64Expression;
+        i64(value: I64Expression): F64Expression;
+      };
+      promote(value: F32Expression): F64Expression;
+      add(left: F64Expression, right: F64Expression): F64Expression;
+      sub(left: F64Expression, right: F64Expression): F64Expression;
+      mul(left: F64Expression, right: F64Expression): F64Expression;
+      div(left: F64Expression, right: F64Expression): F64Expression;
+      copysign(left: F64Expression, right: F64Expression): F64Expression;
+      min(left: F64Expression, right: F64Expression): F64Expression;
+      max(left: F64Expression, right: F64Expression): F64Expression;
+      eq(left: F64Expression, right: F64Expression): F64Expression;
+      ne(left: F64Expression, right: F64Expression): F64Expression;
+      lt(left: F64Expression, right: F64Expression): F64Expression;
+      le(left: F64Expression, right: F64Expression): F64Expression;
+      gt(left: F64Expression, right: F64Expression): F64Expression;
+      ge(left: F64Expression, right: F64Expression): F64Expression;
+    };
+
+    block(label: string, children: Statement[]): Statement;
+    if(condition: I32Expression, ifTrue: Statement, ifFalse: Statement): Statement;
+    loop(label: string, body: Statement): Statement;
+    break(label: string, condition: I32Expression, value?: I32Expression): Statement;
+    switch(labels: string[], defaultLabel: string, condition: I32Expression, value?: I32Expression): Statement;
+    call(name: string, operands: Expression[], type: Type): Expression;
+    callIndirect(target: I32Expression, operands: Expression[], type: Type): Expression;
+    getLocal(index: number, type: Type): Expression;
+    setLocal(index: number, value: Expression): Statement;
+    teeLocal(index: number, value: Expression): Expression;
+    select(condition: I32Expression, ifTrue: Expression, ifFalse: Expression): Expression;
+    drop(value: Expression): Statement;
+    return(value?: Expression): Statement;
+    nop(): Statement;
+    unreachable(): Statement;
   }
 
-  // these are actually pointers internally but exist for the sake of clarity
-  type Type = number;
-  type OpCode = number;
-  type Statement = number;
-  type Expression = number;
-  type Signature = number;
-  type Function = number;
+  interface Type extends Number {}
+  interface Statement extends Number {}
+  interface Signature extends Number {}
+  interface Expression extends Number {}
+  interface I32Expression extends Expression {}
+  interface I64Expression extends Expression {}
+  interface F32Expression extends Expression {}
+  interface F64Expression extends Expression {}
 }
 
 export = binaryen;
