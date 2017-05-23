@@ -156,8 +156,13 @@ interface WasmFunction {
 }
 
 interface WasmVariable {
+  index: number,
+  type: WasmType
+}
+
+interface WasmConstant {
   type: WasmType,
-  value: number
+  value: any
 }
 
 export class Compiler {
@@ -166,7 +171,8 @@ export class Compiler {
   diagnostics: ts.DiagnosticCollection;
   uintptrType: WasmType;
   module: binaryen.Module;
-  signatures: { [key: string]: binaryen.Signature };
+  signatures: { [key: string]: binaryen.Signature } = {};
+  constants: { [key: string]: WasmConstant } = {};
 
   static compile(filename: string): binaryen.Module {
     let program = ts.createProgram([ filename ], {
@@ -196,6 +202,8 @@ export class Compiler {
         return null;
     }
 
+    console.log(compiler.constants);
+
     return compiler.module;
   }
 
@@ -207,7 +215,6 @@ export class Compiler {
     this.checker = program.getDiagnosticsProducingTypeChecker();
     this.diagnostics = ts.createDiagnosticCollection();
     this.module = new binaryen.Module();
-    this.signatures = {};
     this.uintptrType = new WasmType(WasmTypeKind.uintptr, uintptrSize);
   }
 
@@ -247,7 +254,9 @@ export class Compiler {
   initialize(): void {
     const compiler = this;
 
-    this.module.setMemory(256, 0, "memory", []); // "unexpected true: memory max >= initialn" (but it may grow variable)
+    this.module.setMemory(256, 0, "memory", []); // "unexpected true: memory max >= initial" (but the result is correct: growable)
+
+    // TODO: it seem that binaryen.js doesn't support importing memory yet
 
     for (let file of this.program.getSourceFiles()) {
       if (file.isDeclarationFile) continue;
@@ -342,9 +351,32 @@ export class Compiler {
 
   initializeEnum(node: ts.EnumDeclaration): void {
     this.info(node, "initializing enum", node.symbol.name);
-    this.error(node, "enums are not supported yet");
+
+    const compiler = this;
+    const name = node.symbol.name;
+
     ts.forEachChild(node, visit);
+
     function visit(node: ts.Node): void {
+      switch (node.kind) {
+
+        case ts.SyntaxKind.Identifier:
+          break;
+
+        case ts.SyntaxKind.EnumMember:
+        {
+          var member = <ts.EnumMember>node;
+          compiler.constants[name + "$" + member.symbol.name] = {
+            type: intType,
+            value: compiler.checker.getConstantValue(member)
+          };
+          break;
+        }
+
+        default:
+          throw compiler.error(node, "unsupported enum node kind", ts.SyntaxKind[node.kind]);
+
+      }
     }
   }
 
@@ -359,21 +391,29 @@ export class Compiler {
 
     function visit(node: ts.Node) {
       switch (node.kind) {
+
         case ts.SyntaxKind.VariableStatement:
           compiler.compileVariable(<ts.VariableStatement>node);
           break;
+
         case ts.SyntaxKind.FunctionDeclaration:
           compiler.compileFunction(<ts.FunctionDeclaration>node);
           break;
+
         case ts.SyntaxKind.ClassDeclaration:
           compiler.compileClass(<ts.ClassDeclaration>node);
           break;
+
         case ts.SyntaxKind.EnumDeclaration:
-          compiler.compileEnum(<ts.EnumDeclaration>node);
+          // converted to constants when initialized
           break;
+
         case ts.SyntaxKind.EndOfFileToken:
           break;
-        // otherwise already reported by initialize
+
+        // default:
+          // already reported by initialize
+
       }
     }
   }
@@ -401,7 +441,7 @@ export class Compiler {
 
     const compiler = this;
     const body = [];
-    const vars = {};
+    const vars: { [key: string]: WasmVariable } = {};
 
     node.parameters.forEach((parameter, i) => {
       vars[parameter.symbol.name] = {
@@ -790,6 +830,47 @@ export class Compiler {
           return convertValueIfNecessary(compiler.module.getLocal(local.index, local.type.toBinaryenType(compiler.uintptrType)), local.type, type);
         }
 
+        case ts.SyntaxKind.PropertyAccessExpression:
+        {
+          const expr = <ts.PropertyAccessExpression>node;
+
+          if (expr.expression.kind === ts.SyntaxKind.Identifier) {
+            const name = (<ts.Identifier>expr.expression).text;
+
+            if (expr.name.kind === ts.SyntaxKind.Identifier) {
+              const prop = (<ts.Identifier>expr.name).text;
+              const constant = compiler.constants[name + "$" + prop];
+              let long: Long;
+              if (constant) {
+                switch (constant.type) {
+
+                  case byteType:
+                  case sbyteType:
+                  case shortType:
+                  case ushortType:
+                  case intType:
+                  case uintType:
+                    return convertValueIfNecessary(compiler.module.i32.const(constant.value), intType, type);
+
+                  case longType:
+                  case ulongType:
+                    long = Long.fromValue(constant.value);
+                    return convertValueIfNecessary(compiler.module.i64.const(long.low, long.high), longType, type);
+
+                  case compiler.uintptrType:
+                    if (compiler.uintptrType.size === 4)
+                      return convertValueIfNecessary(compiler.module.i32.const(constant.value), intType, type);
+                    else {
+                      long = Long.fromValue(constant.value);
+                      return convertValueIfNecessary(compiler.module.i64.const(long.low, long.high), longType, type);
+                    }
+                }
+              }
+            }
+          }
+          throw Error("unsupported property access");
+        }
+
         default:
           throw Error("unsupported expression node kind: " + ts.SyntaxKind[node.kind]);
       }
@@ -809,10 +890,6 @@ export class Compiler {
 
   compileClass(node: ts.ClassDeclaration): void {
     this.info(node, "compiling class", node.symbol.name);
-  }
-
-  compileEnum(node: ts.EnumDeclaration): void {
-    this.info(node, "compiling enum", node.symbol.name);
   }
 
   resolveType(type: ts.TypeNode, acceptVoid: boolean = false): WasmType {
