@@ -470,13 +470,67 @@ export class Compiler {
 
         }
 
-      } else { // some int type to another
+      } else if (fromType.size <= 4 && toType.size === 8) {
+
+        if (toType.isSigned) {
+
+          const shift = 32 - (toType.size << 3);
+          return compiler.module.i64.extend_s(
+            compiler.module.i32.shl(
+              compiler.module.i32.shr_s(
+                expr,
+                compiler.module.i32.const(shift)
+              ),
+              compiler.module.i32.const(shift)
+            )
+          );
+
+        } else {
+
+          return compiler.module.i64.extend_u(
+            compiler.module.i32.and(
+              expr,
+              compiler.module.i32.const((toType.size << 8) - 1)
+            )
+          );
+
+        }
+
+      } else if (fromType.size === 8 && toType.size <= 4) {
+
+        if (toType.isSigned) {
+
+          const shift = 64 - (toType.size << 3);
+          const longShift = Long.fromNumber(shift);
+          return compiler.module.i32.wrap(
+            compiler.module.i64.shl(
+              compiler.module.i64.shr_s(
+                expr,
+                compiler.module.i64.const(longShift.low, longShift.high)
+              ),
+              compiler.module.i64.const(longShift.low, longShift.high)
+            )
+          );
+
+        } else {
+
+          const longMask = Long.fromNumber((toType.size << 8) - 1);
+          return compiler.module.i32.wrap(
+            compiler.module.i64.and(
+              expr,
+              compiler.module.i64.const(longMask.low, longMask.high)
+            )
+          );
+
+        }
+
+      } else { // some i32 type to another
 
         if (fromType.size < toType.size)
           return expr;
 
-        if (toType == sbyteType || toType == shortType || toType == intType) { // sign-extend
-          const shift = 32 - toType.size * 8;
+        if (toType.isSigned) {
+          const shift = 32 - (toType.size << 3);
           return compiler.module.i32.shl(
             compiler.module.i32.shr_s(
               expr,
@@ -484,13 +538,11 @@ export class Compiler {
             ),
             compiler.module.i32.const(shift)
           );
-        } else if (toType == byteType || toType == ushortType || toType == uintType) { // mask
+        } else {
           return compiler.module.i32.and(
             expr,
             compiler.module.i32.const((toType.size << 8) - 1)
           );
-        } else {
-          return expr;
         }
 
       }
