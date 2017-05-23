@@ -17,7 +17,7 @@ export enum WasmTypeKind {
   bool,
   float,
   double,
-  intptr,
+  uintptr,
   void
 }
 
@@ -43,7 +43,7 @@ export class WasmType {
       case WasmTypeKind.long:
       case WasmTypeKind.ulong:
       case WasmTypeKind.bool:
-      case WasmTypeKind.intptr:
+      case WasmTypeKind.uintptr:
         return true;
     }
     return false;
@@ -72,14 +72,14 @@ export class WasmType {
   withUnderlyingType(underlyingType: WasmType): WasmType {
     if (underlyingType == null)
       throw Error("underlying type must be specified");
-    if (this.kind != WasmTypeKind.intptr)
+    if (this.kind != WasmTypeKind.uintptr)
       throw Error("only pointers can have an underlying type");
     const type = new WasmType(this.kind, this.size);
     type.underlyingType = underlyingType;
     return type;
   }
 
-  toSignatureIdentifier(intptrType: WasmType): string {
+  toSignatureIdentifier(uintptrType: WasmType): string {
     switch (this.kind) {
       case WasmTypeKind.byte:
       case WasmTypeKind.short:
@@ -95,15 +95,15 @@ export class WasmType {
         return "f";
       case WasmTypeKind.double:
         return "F";
-      case WasmTypeKind.intptr:
-        return intptrType.size == 4 ? "i" : "I";
+      case WasmTypeKind.uintptr:
+        return uintptrType.size == 4 ? "i" : "I";
       case WasmTypeKind.void:
         return "v";
     }
     throw Error("unexpected type");
   }
 
-  toBinaryenType(intptrType: WasmType): any {
+  toBinaryenType(uintptrType: WasmType): any {
     switch (this.kind) {
       case WasmTypeKind.byte:
       case WasmTypeKind.short:
@@ -119,8 +119,8 @@ export class WasmType {
         return binaryen.f32;
       case WasmTypeKind.double:
         return binaryen.f64;
-      case WasmTypeKind.intptr:
-        return intptrType.size == 4 ? binaryen.i32 : binaryen.i64;
+      case WasmTypeKind.uintptr:
+        return uintptrType.size == 4 ? binaryen.i32 : binaryen.i64;
       case WasmTypeKind.void:
         return binaryen.none;
     }
@@ -164,7 +164,7 @@ export class Compiler {
   program: ts.Program;
   checker: ts.TypeChecker;
   diagnostics: ts.DiagnosticCollection;
-  intptrType: WasmType;
+  uintptrType: WasmType;
   module: binaryen.Module;
   signatures: { [key: string]: binaryen.Signature };
 
@@ -182,15 +182,15 @@ export class Compiler {
     console.log("\n" + compiler.module.emitText()); // For now
   }
 
-  constructor(program: ts.Program, intptrSize = 4) {
-    if (intptrSize !== 4 && intptrSize !== 8)
-      throw Error("unsupported intptrSize");
+  constructor(program: ts.Program, uintptrSize = 4) {
+    if (uintptrSize !== 4 && uintptrSize !== 8)
+      throw Error("unsupported uintptrSize");
     this.program = program;
     this.checker = program.getDiagnosticsProducingTypeChecker();
     this.diagnostics = ts.createDiagnosticCollection();
     this.module = new binaryen.Module();
     this.signatures = {};
-    this.intptrType = new WasmType(WasmTypeKind.intptr, intptrSize);
+    this.uintptrType = new WasmType(WasmTypeKind.uintptr, uintptrSize);
   }
 
   createDiagnosticForNode(node: ts.Node, category: ts.DiagnosticCategory, message: string, arg1?: string) {
@@ -279,17 +279,17 @@ export class Compiler {
       const name = parameter.symbol.name;
       const type = this.resolveType(parameter.type);
       parameters.push(type);
-      signatureIdentifiers.push(type.toSignatureIdentifier(this.intptrType));
-      signatureTypes.push(type.toBinaryenType(this.intptrType));
+      signatureIdentifiers.push(type.toSignatureIdentifier(this.uintptrType));
+      signatureTypes.push(type.toBinaryenType(this.uintptrType));
     });
 
     const returnType = this.resolveType(node.type, true);
-    signatureIdentifiers.push(returnType.toSignatureIdentifier(this.intptrType));
+    signatureIdentifiers.push(returnType.toSignatureIdentifier(this.uintptrType));
 
     const signatureKey = signatureIdentifiers.join("");
     let signature = this.signatures[signatureKey];
     if (!signature)
-      signature = this.signatures[signatureKey] = this.module.addFunctionType(signatureKey, returnType.toBinaryenType(this.intptrType), signatureTypes);
+      signature = this.signatures[signatureKey] = this.module.addFunctionType(signatureKey, returnType.toBinaryenType(this.uintptrType), signatureTypes);
     let flags = 0;
     if (node.modifiers)
       node.modifiers.forEach(token => {
@@ -430,8 +430,8 @@ export class Compiler {
           case doubleType:
             return compiler.module.f64.promote(expr);
 
-          case this.intptrType:
-            if (this.intptrType.size === 4)
+          case this.uintptrType:
+            if (this.uintptrType.size === 4)
               return compiler.module.i32.trunc_u.f32(expr);
             else
               return compiler.module.i64.trunc_u.f32(expr);
@@ -462,8 +462,8 @@ export class Compiler {
           case floatType:
             return compiler.module.f32.demote(expr);
 
-          case this.intptrType:
-            if (this.intptrType.size === 4)
+          case this.uintptrType:
+            if (this.uintptrType.size === 4)
               return compiler.module.i32.trunc_u.f64(expr);
             else
               return compiler.module.i64.trunc_u.f64(expr);
@@ -600,7 +600,7 @@ export class Compiler {
                 return compiler.module.f64.div(left, right);
 
             }
-          } else if (type == longType || type === ulongType || (type === compiler.intptrType && compiler.intptrType.size === 8)) {
+          } else if (type == longType || type === ulongType || (type === compiler.uintptrType && compiler.uintptrType.size === 8)) {
             switch (expr.operatorToken.kind) {
 
               case ts.SyntaxKind.PlusToken:
@@ -731,8 +731,8 @@ export class Compiler {
             case boolType:
               return compiler.module.i32.const(parseInt(text, radix) !== 0 ? 1 : 0);
 
-            case this.intptrType:
-              if (this.intptrType.size === 8) {
+            case this.uintptrType:
+              if (this.uintptrType.size === 8) {
                 long = Long.fromString(text, true, radix);
                 return compiler.module.i64.const(long.low, long.high);
               }
@@ -809,7 +809,7 @@ export class Compiler {
             throw Error("unexpected number of type parameters on IntPtr<T>");
           if (reference.typeArguments[0].kind !== ts.SyntaxKind.TypeReference)
             throw Error("unexpected type parameter on IntPtr<T>");
-          return this.intptrType.withUnderlyingType(this.resolveType(<ts.TypeReferenceNode>reference.typeArguments[0]));
+          return this.uintptrType.withUnderlyingType(this.resolveType(<ts.TypeReferenceNode>reference.typeArguments[0]));
       }
     }
 

@@ -29,21 +29,22 @@ declare type float = number;
 declare type double = number;
 
 /** A 32-bit unsigned integer when targeting WASM32 respectively a 64-bit unsigned integer when targeting WASM64. */
-declare type intptr = number;
+declare type uintptr = number;
 
 /** A class describing a pointer to a data structure. */
 declare class IntPtr<T extends number | object> {
-    public offset: intptr;
+    public offset: uintptr;
     public value: T;
-    constructor(offset: intptr);
-    public increment(diff: intptr): this;
-    public decrement(diff: intptr): this;
+    constructor(offset: uintptr);
+    public increment(diff: uintptr): this;
+    public decrement(diff: uintptr): this;
 }
 
 /** Retrieves the byte size of a data structure. */
-declare function sizeof<T>(): intptr;
+declare function sizeof<T>(): uintptr;
 
 declare function sizeof<byte>()   : 1;
+declare function sizeof<sbyte>()  : 1;
 declare function sizeof<short>()  : 2;
 declare function sizeof<ushort>() : 2;
 declare function sizeof<int>()    : 4;
