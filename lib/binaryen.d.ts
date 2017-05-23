@@ -219,6 +219,11 @@ declare module binaryen {
     return(value?: Expression): Statement;
     nop(): Statement;
     unreachable(): Statement;
+
+    // these are currently missing:
+    // grow_memory(value: number): Statement;
+    // current_memory(): Expression;
+
   }
 
   interface Type extends Number {}

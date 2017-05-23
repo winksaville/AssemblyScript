@@ -168,23 +168,41 @@ export class Compiler {
   module: binaryen.Module;
   signatures: { [key: string]: binaryen.Signature };
 
-  static compile(filename: string) {
+  static compile(filename: string): binaryen.Module {
     let program = ts.createProgram([ filename ], {
       target: ts.ScriptTarget.Latest,
       module: ts.ModuleKind.None,
       noLib: true,
       experimentalDecorators: true
     });
+
     let compiler = new Compiler(program);
+
     compiler.initialize();
+
+    // bail out if there were initialization errors
+    let diagnostics = compiler.diagnostics.getDiagnostics();
+    for (let diagnostic of diagnostics) {
+      if (diagnostic.category === ts.DiagnosticCategory.Error)
+        return null;
+    }
+
     compiler.compile();
 
-    console.log("\n" + compiler.module.emitText()); // For now
+    // bail out if there were compilation errors
+    diagnostics = compiler.diagnostics.getDiagnostics();
+    for (let diagnostic of diagnostics) {
+      if (diagnostic.category === ts.DiagnosticCategory.Error)
+        return null;
+    }
+
+    return compiler.module;
   }
 
   constructor(program: ts.Program, uintptrSize = 4) {
     if (uintptrSize !== 4 && uintptrSize !== 8)
       throw Error("unsupported uintptrSize");
+
     this.program = program;
     this.checker = program.getDiagnosticsProducingTypeChecker();
     this.diagnostics = ts.createDiagnosticCollection();
@@ -229,8 +247,7 @@ export class Compiler {
   initialize(): void {
     const compiler = this;
 
-    this.module.setMemory(256, 0, "memory", []);
-    // this.module.addImport("memory", "env", "memory", <any>"memory"); // ?
+    this.module.setMemory(256, 0, "memory", []); // "unexpected true: memory max >= initialn" (but it may grow variable)
 
     for (let file of this.program.getSourceFiles()) {
       if (file.isDeclarationFile) continue;
@@ -248,6 +265,9 @@ export class Compiler {
           break;
         case ts.SyntaxKind.ClassDeclaration:
           compiler.initializeClass(<ts.ClassDeclaration>node);
+          break;
+        case ts.SyntaxKind.EnumDeclaration:
+          compiler.initializeEnum(<ts.EnumDeclaration>node);
           break;
         case ts.SyntaxKind.EndOfFileToken:
           break;
@@ -320,6 +340,14 @@ export class Compiler {
     }
   }
 
+  initializeEnum(node: ts.EnumDeclaration): void {
+    this.info(node, "initializing enum", node.symbol.name);
+    this.error(node, "enums are not supported yet");
+    ts.forEachChild(node, visit);
+    function visit(node: ts.Node): void {
+    }
+  }
+
   compile(): void {
     const compiler = this;
 
@@ -339,6 +367,9 @@ export class Compiler {
           break;
         case ts.SyntaxKind.ClassDeclaration:
           compiler.compileClass(<ts.ClassDeclaration>node);
+          break;
+        case ts.SyntaxKind.EnumDeclaration:
+          compiler.compileEnum(<ts.EnumDeclaration>node);
           break;
         case ts.SyntaxKind.EndOfFileToken:
           break;
@@ -393,7 +424,7 @@ export class Compiler {
           } else {
             if (expr.getChildCount() < 2) // return keyword + expression
               compiler.error(expr, "function must return a value", wasmFunction.name);
-            body.push(compiler.module.return(visitExpression(<ts.Expression>node.getChildAt(1), wasmFunction.returnType)));
+            body.push(compiler.module.return(compileExpression(<ts.Expression>node.getChildAt(1), wasmFunction.returnType)));
           }
           break;
         }
@@ -402,7 +433,7 @@ export class Compiler {
       }
     }
 
-    function convertExpressionIfNecessary(expr: binaryen.Expression, fromType: WasmType, toType: WasmType) {
+    function convertValueIfNecessary(expr: binaryen.Expression, fromType: WasmType, toType: WasmType, explicit: boolean = false) {
       if (fromType.kind === toType.kind)
         return expr;
 
@@ -414,12 +445,12 @@ export class Compiler {
           case ushortType:
           case uintType:
           case boolType:
-            return convertExpressionIfNecessary(compiler.module.i32.trunc_u.f32(expr), intType, toType);
+            return convertValueIfNecessary(compiler.module.i32.trunc_u.f32(expr), intType, toType);
 
           case sbyteType:
           case shortType:
           case intType:
-            return convertExpressionIfNecessary(compiler.module.i32.trunc_s.f32(expr), intType, toType);
+            return convertValueIfNecessary(compiler.module.i32.trunc_s.f32(expr), intType, toType);
 
           case ulongType:
             return compiler.module.i64.trunc_u.f32(expr);
@@ -446,12 +477,12 @@ export class Compiler {
           case ushortType:
           case uintType:
           case boolType:
-            return convertExpressionIfNecessary(compiler.module.i32.trunc_u.f64(expr), intType, toType);
+            return convertValueIfNecessary(compiler.module.i32.trunc_u.f64(expr), intType, toType);
 
           case sbyteType:
           case shortType:
           case intType:
-            return convertExpressionIfNecessary(compiler.module.i32.trunc_s.f64(expr), intType, toType);
+            return convertValueIfNecessary(compiler.module.i32.trunc_s.f64(expr), intType, toType);
 
           case ulongType:
             return compiler.module.i64.trunc_u.f64(expr);
@@ -550,25 +581,27 @@ export class Compiler {
       throw Error("unexpected conversion");
     }
 
-    function visitExpression(node: ts.Expression, type: WasmType): binaryen.Expression {
+    function compileExpression(node: ts.Expression, type: WasmType): binaryen.Expression {
       switch (node.kind) {
 
         case ts.SyntaxKind.ParenthesizedExpression:
-          return visitExpression(<ts.ParenthesizedExpression>node, type);
+          return compileExpression((<ts.ParenthesizedExpression>node).expression, type);
 
         case ts.SyntaxKind.AsExpression:
         {
           const expr = <ts.AsExpression>node;
-          return visitExpression(expr.expression, this.resolveType(expr.type));
+          const exprType = compiler.resolveType(expr.type);
+          return convertValueIfNecessary(compileExpression(expr.expression, exprType), exprType, type, true);
         }
 
         case ts.SyntaxKind.BinaryExpression:
         {
           const expr = <ts.BinaryExpression>node;
-          const left = visitExpression(expr.left, type);
-          const right = visitExpression(expr.right, type);
+          const left = compileExpression(expr.left, type);
+          const right = compileExpression(expr.right, type);
 
           if (type === floatType) {
+
             switch (expr.operatorToken.kind) {
 
               case ts.SyntaxKind.PlusToken:
@@ -584,7 +617,9 @@ export class Compiler {
                 return compiler.module.f32.div(left, right);
 
             }
+
           } else if (type === doubleType) {
+
             switch (expr.operatorToken.kind) {
 
               case ts.SyntaxKind.PlusToken:
@@ -600,7 +635,9 @@ export class Compiler {
                 return compiler.module.f64.div(left, right);
 
             }
+
           } else if (type == longType || type === ulongType || (type === compiler.uintptrType && compiler.uintptrType.size === 8)) {
+
             switch (expr.operatorToken.kind) {
 
               case ts.SyntaxKind.PlusToken:
@@ -643,47 +680,49 @@ export class Compiler {
                   return compiler.module.i64.shr_u(left, right);
 
             }
-          } else {
+
+          } else { // some i32 type
+
             switch (expr.operatorToken.kind) {
 
               case ts.SyntaxKind.PlusToken:
-                return compiler.module.i32.add(left, right);
+                return convertValueIfNecessary(compiler.module.i32.add(left, right), intType, type);
 
               case ts.SyntaxKind.MinusToken:
-                return compiler.module.i32.sub(left, right);
+                return convertValueIfNecessary(compiler.module.i32.sub(left, right), intType, type);
 
               case ts.SyntaxKind.AsteriskToken:
-                return compiler.module.i32.mul(left, right);
+                return convertValueIfNecessary(compiler.module.i32.mul(left, right), intType, type);
 
               case ts.SyntaxKind.SlashToken:
                 if (type.isSigned)
-                  return compiler.module.i32.div_s(left, right);
+                  return convertValueIfNecessary(compiler.module.i32.div_s(left, right), intType, type);
                 else
-                  return compiler.module.i32.div_u(left, right);
+                  return convertValueIfNecessary(compiler.module.i32.div_u(left, right), intType, type);
 
               case ts.SyntaxKind.PercentToken:
                 if (type.isSigned)
-                  return compiler.module.i32.rem_s(left, right);
+                  return convertValueIfNecessary(compiler.module.i32.rem_s(left, right), intType, type);
                 else
-                  return compiler.module.i32.rem_u(left, right);
+                  return convertValueIfNecessary(compiler.module.i32.rem_u(left, right), intType, type);
 
               case ts.SyntaxKind.AmpersandToken:
-                return compiler.module.i32.and(left, right);
+                return convertValueIfNecessary(compiler.module.i32.and(left, right), intType, type);
 
               case ts.SyntaxKind.BarToken:
-                return compiler.module.i32.or(left, right);
+                return convertValueIfNecessary(compiler.module.i32.or(left, right), intType, type);
 
               case ts.SyntaxKind.CaretToken:
-                return compiler.module.i32.xor(left, right);
+                return convertValueIfNecessary(compiler.module.i32.xor(left, right), intType, type);
 
               case ts.SyntaxKind.LessThanLessThanToken:
-                return compiler.module.i32.shl(left, right);
+                return convertValueIfNecessary(compiler.module.i32.shl(left, right), intType, type);
 
               case ts.SyntaxKind.GreaterThanGreaterThanToken:
                 if (type.isSigned)
-                  return compiler.module.i32.shr_s(left, right);
+                  return convertValueIfNecessary(compiler.module.i32.shr_s(left, right), intType, type);
                 else
-                  return compiler.module.i32.shr_u(left, right);
+                  return convertValueIfNecessary(compiler.module.i32.shr_u(left, right), intType, type);
 
             }
           }
@@ -748,7 +787,7 @@ export class Compiler {
           if (local == null)
             throw Error("undefined local variable: " + id.text);
 
-          return convertExpressionIfNecessary(compiler.module.getLocal(local.index, local.type), local.type, type);
+          return convertValueIfNecessary(compiler.module.getLocal(local.index, local.type.toBinaryenType(compiler.uintptrType)), local.type, type);
         }
 
         default:
@@ -772,33 +811,25 @@ export class Compiler {
     this.info(node, "compiling class", node.symbol.name);
   }
 
+  compileEnum(node: ts.EnumDeclaration): void {
+    this.info(node, "compiling enum", node.symbol.name);
+  }
+
   resolveType(type: ts.TypeNode, acceptVoid: boolean = false): WasmType {
     const text = type.getText();
 
     switch (text) {
-      case "byte":
-        return byteType;
-      case "short":
-        return shortType;
-      case "ushort":
-        return ushortType;
-      case "int":
-        return intType;
-      case "uint":
-        return uintType;
-      case "long":
-        return longType;
-      case "ulong":
-        return ulongType;
-      case "bool":
-        return boolType;
-      case "float":
-        return floatType;
-      case "double":
-        return doubleType;
-      case "void":
-        if (acceptVoid)
-          return voidType;
+      case "byte": return byteType;
+      case "short": return shortType;
+      case "ushort": return ushortType;
+      case "int": return intType;
+      case "uint": return uintType;
+      case "long": return longType;
+      case "ulong": return ulongType;
+      case "bool": return boolType;
+      case "float": return floatType;
+      case "double": return doubleType;
+      case "void": if (acceptVoid) return voidType;
     }
 
     if (type.kind == ts.SyntaxKind.TypeReference) {
@@ -819,4 +850,4 @@ export class Compiler {
 
 // TOOD: remove this
 if (process.argv.length > 2)
-  Compiler.compile(process.argv[2]);
+  console.log("\n" + Compiler.compile(process.argv[2]).emitText());
