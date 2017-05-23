@@ -9,12 +9,12 @@ declare module binaryen {
   class Module {
 
     addFunctionType(name: string, resultType: Type, paramTypes: Type[]): Signature;
-    addFunction(name: string, functionType: Signature, varTypes: Type[], body: Statement[]): Function;
+    addFunction(name: string, functionType: Signature, varTypes: Type[], body: Statement[]): binaryen.Function;
     addImport(internalName: string, externalModuleName: string, externalBaseName: string, functionType?: Signature): void;
     addExport(internalName: string, externalName: string): void;
     setFunctionTable(funcs: number[]): void;
     setMemory(initial: number, maximum: number, exportName?: string, segments?: number[]);
-    setStart(start: Function): void;
+    setStart(start: binaryen.Function): void;
 
     emitBinary(): Uint8Array;
     emitText(): string;
@@ -221,7 +221,7 @@ declare module binaryen {
     unreachable(): Statement;
 
     // these are currently missing:
-    // grow_memory(value: number): Statement;
+    // grow_memory(value: number): Expression;
     // current_memory(): Expression;
 
   }

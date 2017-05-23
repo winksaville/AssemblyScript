@@ -202,14 +202,22 @@ export class Compiler {
   profileTimes: { [key: string]: [number, number] } = {};
 
   static compile(filename: string): binaryen.Module {
-    let program = ts.createProgram([ filename ], {
+    let program = ts.createProgram([ __dirname + "/../types/assembly.d.ts", filename ], {
       target: ts.ScriptTarget.Latest,
       module: ts.ModuleKind.None,
       noLib: true,
-      experimentalDecorators: true
+      experimentalDecorators: true,
+      types: []
     });
 
     let compiler = new Compiler(program);
+
+    // bail out if there were 'pre emit' errors
+    for (let diagnostic of ts.getPreEmitDiagnostics(compiler.program)) {
+      compiler.printDiagnostic(diagnostic);
+      if (diagnostic.category === ts.DiagnosticCategory.Error)
+        return null;
+    }
 
     compiler.startProfile("initialize");
     compiler.initialize();
@@ -401,6 +409,10 @@ export class Compiler {
           break;
 
         case ts.SyntaxKind.MethodDeclaration:
+          if (isExport(node))
+            compiler.error(node, "class methods cannot be exports");
+          if (isImport(node))
+            compiler.error(node, "class methods cannot be imports");
           compiler._initializeFunction(<ts.MethodDeclaration>node, clazz, (node.modifierFlagsCache & ts.ModifierFlags.Static) === 0);
           break;
 
@@ -461,13 +473,6 @@ export class Compiler {
 
         case ts.SyntaxKind.ClassDeclaration:
           compiler.compileClass(<ts.ClassDeclaration>node);
-          break;
-
-        case ts.SyntaxKind.EnumDeclaration:
-          // converted to constants when initialized
-          break;
-
-        case ts.SyntaxKind.EndOfFileToken:
           break;
 
         // default:
