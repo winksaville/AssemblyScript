@@ -7,6 +7,15 @@ enum MyEnum {
   TWO = 2
 }
 
+class MyClass {
+  hi(): void {
+
+  }
+  static hlo(): int {
+    return 1;
+  }
+}
+
 export function add(a: int, b: int): byte {
   return (a as short) + b + MyEnum.ONE;
 }
