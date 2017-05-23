@@ -81,6 +81,7 @@ export class WasmType {
 
   toSignatureIdentifier(uintptrType: WasmType): string {
     switch (this.kind) {
+
       case WasmTypeKind.byte:
       case WasmTypeKind.short:
       case WasmTypeKind.ushort:
@@ -88,23 +89,30 @@ export class WasmType {
       case WasmTypeKind.uint:
       case WasmTypeKind.bool:
         return "i";
+
       case WasmTypeKind.long:
       case WasmTypeKind.ulong:
         return "I";
+
       case WasmTypeKind.float:
         return "f";
+
       case WasmTypeKind.double:
         return "F";
+
       case WasmTypeKind.uintptr:
         return uintptrType.size == 4 ? "i" : "I";
+
       case WasmTypeKind.void:
         return "v";
+
     }
     throw Error("unexpected type");
   }
 
   toBinaryenType(uintptrType: WasmType): any {
     switch (this.kind) {
+
       case WasmTypeKind.byte:
       case WasmTypeKind.short:
       case WasmTypeKind.ushort:
@@ -112,17 +120,23 @@ export class WasmType {
       case WasmTypeKind.uint:
       case WasmTypeKind.bool:
         return binaryen.i32;
+
       case WasmTypeKind.long:
       case WasmTypeKind.ulong:
         return binaryen.i64;
+
       case WasmTypeKind.float:
         return binaryen.f32;
+
       case WasmTypeKind.double:
         return binaryen.f64;
+
       case WasmTypeKind.uintptr:
         return uintptrType.size == 4 ? binaryen.i32 : binaryen.i64;
+
       case WasmTypeKind.void:
         return binaryen.none;
+
     }
     throw Error("unexpected type");
   }
@@ -165,6 +179,18 @@ interface WasmConstant {
   value: any
 }
 
+function isExport(node: ts.Node): boolean {
+  return (node.modifierFlagsCache & ts.ModifierFlags.Export) !== 0;
+}
+
+function isImport(node: ts.Node): boolean {
+  if (node.modifiers) // TODO: isn't there a flag for that?
+    for (let modifier of node.modifiers)
+      if (modifier.kind === ts.SyntaxKind.DeclareKeyword)
+        return true;
+  return false;
+}
+
 export class Compiler {
   program: ts.Program;
   checker: ts.TypeChecker;
@@ -173,6 +199,7 @@ export class Compiler {
   module: binaryen.Module;
   signatures: { [key: string]: binaryen.Signature } = {};
   constants: { [key: string]: WasmConstant } = {};
+  profileTimes: { [key: string]: [number, number] } = {};
 
   static compile(filename: string): binaryen.Module {
     let program = ts.createProgram([ filename ], {
@@ -184,7 +211,9 @@ export class Compiler {
 
     let compiler = new Compiler(program);
 
+    compiler.startProfile("initialize");
     compiler.initialize();
+    process.stderr.write("initialization took " + compiler.endProfile("initialize").toFixed(3) + " ms\n");
 
     // bail out if there were initialization errors
     let diagnostics = compiler.diagnostics.getDiagnostics();
@@ -193,7 +222,9 @@ export class Compiler {
         return null;
     }
 
+    compiler.startProfile("compile");
     compiler.compile();
+    process.stderr.write("compilation took " + compiler.endProfile("compile").toFixed(3) + " ms\n");
 
     // bail out if there were compilation errors
     diagnostics = compiler.diagnostics.getDiagnostics();
@@ -214,6 +245,18 @@ export class Compiler {
     this.diagnostics = ts.createDiagnosticCollection();
     this.module = new binaryen.Module();
     this.uintptrType = new WasmType(WasmTypeKind.uintptr, uintptrSize);
+  }
+
+  startProfile(name: string): void {
+    this.profileTimes[name] = process.hrtime();
+  }
+
+  endProfile(name: string): number {
+    const start = this.profileTimes[name];
+    if (!start)
+      return 0;
+    const time = process.hrtime(start);
+    return time[0] + time[1] * (1 / 1000000);
   }
 
   createDiagnosticForNode(node: ts.Node, category: ts.DiagnosticCategory, message: string, arg1?: string) {
@@ -258,7 +301,6 @@ export class Compiler {
 
     for (let file of this.program.getSourceFiles()) {
       if (file.isDeclarationFile) continue;
-      this.info(file, "initializing file", file.fileName);
       ts.forEachChild(file, visit);
     }
 
@@ -325,17 +367,12 @@ export class Compiler {
     if (!signature)
       signature = this.signatures[signatureKey] = this.module.addFunctionType(signatureKey, returnType.toBinaryenType(this.uintptrType), signatureTypes);
     let flags = 0;
-    if (node.modifiers)
-      node.modifiers.forEach(token => {
-        switch (token.kind) {
-          case ts.SyntaxKind.DeclareKeyword:
-            flags |= WasmFunctionFlags.import;
-            break;
-          case ts.SyntaxKind.ExportKeyword:
-            flags |= WasmFunctionFlags.export;
-            break;
-        }
-      });
+
+    if (isExport(node))
+      flags |= WasmFunctionFlags.export;
+
+    if (isImport(node))
+      flags |= WasmFunctionFlags.import;
 
     (<any>node).wasmFunction = {
       name: parent ? parent.symbol.name + "$" + name : name,
@@ -347,15 +384,10 @@ export class Compiler {
   }
 
   initializeFunction(node: ts.FunctionDeclaration): void {
-    const name = node.symbol.name;
-
-    this.info(node, "initializing function", name);
     this._initializeFunction(node);
   }
 
   initializeClass(node: ts.ClassDeclaration): void {
-    this.info(node, "initializing class", node.symbol.name);
-
     const compiler = this;
     const clazz = node;
     const name = node.symbol.name;
@@ -369,7 +401,6 @@ export class Compiler {
           break;
 
         case ts.SyntaxKind.MethodDeclaration:
-          compiler.info(node, "initializing class method", node.symbol.name);
           compiler._initializeFunction(<ts.MethodDeclaration>node, clazz, (node.modifierFlagsCache & ts.ModifierFlags.Static) === 0);
           break;
 
@@ -381,8 +412,6 @@ export class Compiler {
   }
 
   initializeEnum(node: ts.EnumDeclaration): void {
-    this.info(node, "initializing enum", node.symbol.name);
-
     const compiler = this;
     const name = node.symbol.name;
 
@@ -416,7 +445,6 @@ export class Compiler {
 
     for (let file of this.program.getSourceFiles()) {
       if (file.isDeclarationFile) continue;
-      this.info(file, "compiling file", file.fileName);
       ts.forEachChild(file, visit);
     }
 
@@ -450,7 +478,7 @@ export class Compiler {
   }
 
   compileVariable(node: ts.VariableStatement): void {
-    this.info(node, "compiling variable", node.symbol.name);
+    // TODO
   }
 
   private _compileFunction(node: ts.FunctionDeclaration | ts.MethodDeclaration) {
@@ -500,7 +528,6 @@ export class Compiler {
   compileFunction(node: ts.FunctionDeclaration): void {
     const wasmFunction: WasmFunction = (<any>node).wasmFunction;
     const name = node.symbol.name;
-    this.info(node, "compiling function", name);
 
     if ((wasmFunction.flags & WasmFunctionFlags.import) != 0) {
       let moduleName: string;
@@ -527,8 +554,6 @@ export class Compiler {
   }
 
   compileClass(node: ts.ClassDeclaration): void {
-    this.info(node, "compiling class", node.symbol.name);
-
     const compiler = this;
     const clazz = node;
     const name = node.symbol.name;
@@ -563,6 +588,7 @@ export class Compiler {
       case "float": return floatType;
       case "double": return doubleType;
       case "void": if (acceptVoid) return voidType;
+      case "uintptr": return this.uintptrType;
     }
 
     if (type.kind == ts.SyntaxKind.TypeReference) {
@@ -927,11 +953,11 @@ function compileExpression(compiler: Compiler, locals: { [key: string]: WasmVari
 
     case ts.SyntaxKind.Identifier:
     {
-      const id = <ts.Identifier>node;
-      const local = locals[id.text];
+      const ident = <ts.Identifier>node;
+      const local = locals[ident.text];
 
       if (local == null)
-        throw Error("undefined local variable: " + id.text);
+        throw Error("undefined local variable: " + ident.text);
 
       return convertValueIfNecessary(compiler, compiler.module.getLocal(local.index, local.type.toBinaryenType(compiler.uintptrType)), local.type, type);
     }
