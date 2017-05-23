@@ -9,12 +9,12 @@ declare module binaryen {
   class Module {
 
     addFunctionType(name: string, resultType: Type, paramTypes: Type[]): Signature;
-    addFunction(name: string, functionType: number, varTypes: number[], body: number[]): number;
-    addImport(internalName: string, externalModuleName: string, externalBaseName: string, functionType?: number): void;
+    addFunction(name: string, functionType: Signature, varTypes: Type[], body: Statement[]): Function;
+    addImport(internalName: string, externalModuleName: string, externalBaseName: string, functionType?: Signature): void;
     addExport(internalName: string, externalName: string): void;
     setFunctionTable(funcs: number[]): void;
     setMemory(initial: number, maximum: number, exportName?: string, segments?: number[]);
-    setStart(start: number): void;
+    setStart(start: Function): void;
 
     emitBinary(): Uint8Array;
     emitText(): string;
@@ -224,6 +224,7 @@ declare module binaryen {
   interface Type extends Number {}
   interface Statement extends Number {}
   interface Signature extends Number {}
+  interface Function extends Number {}
   interface Expression extends Number {}
   interface I32Expression extends Expression {}
   interface I64Expression extends Expression {}

@@ -1,6 +1,9 @@
 /** An 8-bit unsigned integer. */
 declare type byte = number;
 
+/** An 8-bit signed integer. */
+declare type sbyte = number;
+
 /** A 16-bit signed integer. */
 declare type short = number;
 

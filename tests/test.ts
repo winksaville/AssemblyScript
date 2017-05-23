@@ -2,9 +2,9 @@
 
 declare function alert(message: IntPtr<ushort>): void;
 
-export function add(a: int, b: int): int {
-  return 12 + a + b;
+export function add(a: int, b: float): byte {
+  return a + b;
 }
 
-function start<T>(): void {
+function start(): void {
 }

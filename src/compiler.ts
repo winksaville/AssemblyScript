@@ -2,10 +2,12 @@
 
 import * as ts from "byots";
 import * as binaryen from "../lib/binaryen";
+import * as Long from "long";
 import { formatDiagnostics, formatDiagnosticsWithColorAndContext } from "./util/diagnostics";
 
 export enum WasmTypeKind {
   byte,
+  sbyte,
   short,
   ushort,
   int,
@@ -28,6 +30,43 @@ export class WasmType {
     this.kind = kind;
     this.size = size;
     this.underlyingType = underlyingType;
+  }
+
+  get isInteger(): boolean {
+    switch (this.kind) {
+      case WasmTypeKind.byte:
+      case WasmTypeKind.sbyte:
+      case WasmTypeKind.short:
+      case WasmTypeKind.ushort:
+      case WasmTypeKind.int:
+      case WasmTypeKind.uint:
+      case WasmTypeKind.long:
+      case WasmTypeKind.ulong:
+      case WasmTypeKind.bool:
+      case WasmTypeKind.intptr:
+        return true;
+    }
+    return false;
+  }
+
+  get isFloat(): boolean {
+    switch (this.kind) {
+      case WasmTypeKind.float:
+      case WasmTypeKind.double:
+        return true;
+    }
+    return false;
+  }
+
+  get isSigned(): boolean {
+    switch (this.kind) {
+      case WasmTypeKind.sbyte:
+      case WasmTypeKind.short:
+      case WasmTypeKind.int:
+      case WasmTypeKind.long:
+        return true;
+    }
+    return false;
   }
 
   withUnderlyingType(underlyingType: WasmType): WasmType {
@@ -90,6 +129,7 @@ export class WasmType {
 }
 
 export const byteType   = new WasmType(WasmTypeKind.byte   , 1);
+export const sbyteType  = new WasmType(WasmTypeKind.sbyte  , 1);
 export const shortType  = new WasmType(WasmTypeKind.short  , 2);
 export const ushortType = new WasmType(WasmTypeKind.ushort , 2);
 export const intType    = new WasmType(WasmTypeKind.int    , 4);
@@ -108,6 +148,7 @@ enum WasmFunctionFlags {
 }
 
 interface WasmFunction {
+  name: string,
   parameters: WasmType[],
   returnType: WasmType,
   flags: WasmFunctionFlags,
@@ -224,7 +265,9 @@ export class Compiler {
   }
 
   initializeFunction(node: ts.FunctionDeclaration): void {
-    this.info(node, "initializing function", node.symbol.name);
+    const name = node.symbol.name;
+
+    this.info(node, "initializing function", name);
     if (node.typeParameters && node.typeParameters.length !== 0)
       this.error(node.typeParameters[0], "type parameters are not supported yet");
 
@@ -261,6 +304,7 @@ export class Compiler {
       });
 
     (<any>node).wasmFunction = {
+      name: name,
       parameters: parameters,
       returnType: returnType,
       flags: flags,
@@ -308,7 +352,7 @@ export class Compiler {
   }
 
   compileFunction(node: ts.FunctionDeclaration): void {
-    const wasmFunction = (<any>node).wasmFunction;
+    const wasmFunction: WasmFunction = (<any>node).wasmFunction;
     const name = node.symbol.name;
     this.info(node, "compiling function", name);
 
@@ -340,47 +384,321 @@ export class Compiler {
     function visit(node: ts.Node) {
       switch (node.kind) {
         case ts.SyntaxKind.ReturnStatement:
-          body.push(compiler.module.return(wasmFunction.returnType !== voidType ? visitExpression(<ts.Expression>node.getChildAt(1)) : null));
+        {
+          const expr = <ts.ParenthesizedExpression>node;
+          if (wasmFunction.returnType === voidType) {
+            if (expr.getChildCount() > 1) // return keyword
+              compiler.error(expr, "void function cannot return a value", wasmFunction.name);
+            body.push(compiler.module.return());
+          } else {
+            if (expr.getChildCount() < 2) // return keyword + expression
+              compiler.error(expr, "function must return a value", wasmFunction.name);
+            body.push(compiler.module.return(visitExpression(<ts.Expression>node.getChildAt(1), wasmFunction.returnType)));
+          }
           break;
+        }
         default:
           throw Error("unsupported body node kind: " + ts.SyntaxKind[node.kind]);
       }
     }
 
-    function visitExpression(node: ts.Expression): number {
+    function convertExpressionIfNecessary(expr: binaryen.Expression, fromType: WasmType, toType: WasmType) {
+      if (fromType.kind === toType.kind)
+        return expr;
+
+      if (fromType === floatType) {
+
+        switch (toType) {
+
+          case byteType:
+          case ushortType:
+          case uintType:
+          case boolType:
+            return convertExpressionIfNecessary(compiler.module.i32.trunc_u.f32(expr), intType, toType);
+
+          case sbyteType:
+          case shortType:
+          case intType:
+            return convertExpressionIfNecessary(compiler.module.i32.trunc_s.f32(expr), intType, toType);
+
+          case ulongType:
+            return compiler.module.i64.trunc_u.f32(expr);
+
+          case longType:
+            return compiler.module.i64.trunc_s.f32(expr);
+
+          case doubleType:
+            return compiler.module.f64.promote(expr);
+
+          case this.intptrType:
+            if (this.intptrType.size === 4)
+              return compiler.module.i32.trunc_u.f32(expr);
+            else
+              return compiler.module.i64.trunc_u.f32(expr);
+
+        }
+
+      } else if (fromType === doubleType) {
+
+        switch (toType) {
+
+          case byteType:
+          case ushortType:
+          case uintType:
+          case boolType:
+            return convertExpressionIfNecessary(compiler.module.i32.trunc_u.f64(expr), intType, toType);
+
+          case sbyteType:
+          case shortType:
+          case intType:
+            return convertExpressionIfNecessary(compiler.module.i32.trunc_s.f64(expr), intType, toType);
+
+          case ulongType:
+            return compiler.module.i64.trunc_u.f64(expr);
+
+          case longType:
+            return compiler.module.i64.trunc_s.f64(expr);
+
+          case floatType:
+            return compiler.module.f32.demote(expr);
+
+          case this.intptrType:
+            if (this.intptrType.size === 4)
+              return compiler.module.i32.trunc_u.f64(expr);
+            else
+              return compiler.module.i64.trunc_u.f64(expr);
+
+        }
+
+      } else { // some int type to another
+
+        if (fromType.size < toType.size)
+          return expr;
+
+        if (toType == sbyteType || toType == shortType || toType == intType) { // sign-extend
+          const shift = 32 - toType.size * 8;
+          return compiler.module.i32.shl(
+            compiler.module.i32.shr_s(
+              expr,
+              compiler.module.i32.const(shift)
+            ),
+            compiler.module.i32.const(shift)
+          );
+        } else if (toType == byteType || toType == ushortType || toType == uintType) { // mask
+          return compiler.module.i32.and(
+            expr,
+            compiler.module.i32.const((toType.size << 8) - 1)
+          );
+        } else {
+          return expr;
+        }
+
+      }
+
+      throw Error("unexpected conversion");
+    }
+
+    function visitExpression(node: ts.Expression, type: WasmType): binaryen.Expression {
       switch (node.kind) {
+
+        case ts.SyntaxKind.ParenthesizedExpression:
+          return visitExpression(<ts.ParenthesizedExpression>node, type);
+
+        case ts.SyntaxKind.AsExpression:
+        {
+          const expr = <ts.AsExpression>node;
+          return visitExpression(expr.expression, this.resolveType(expr.type));
+        }
+
         case ts.SyntaxKind.BinaryExpression:
         {
           const expr = <ts.BinaryExpression>node;
-          const left = visitExpression(expr.left);
-          const right = visitExpression(expr.right);
+          const left = visitExpression(expr.left, type);
+          const right = visitExpression(expr.right, type);
 
-          switch (expr.operatorToken.kind) {
-            case ts.SyntaxKind.PlusToken:
-              return compiler.module.i32.add(left, right);
-            case ts.SyntaxKind.MinusToken:
-              return compiler.module.i32.sub(left, right);
-            default:
-              throw Error("unsupported operator token kind: " + ts.SyntaxKind[expr.operatorToken.kind]);
+          if (type === floatType) {
+            switch (expr.operatorToken.kind) {
+
+              case ts.SyntaxKind.PlusToken:
+                return compiler.module.f32.add(left, right);
+
+              case ts.SyntaxKind.MinusToken:
+                return compiler.module.f32.sub(left, right);
+
+              case ts.SyntaxKind.AsteriskToken:
+                return compiler.module.f32.mul(left, right);
+
+              case ts.SyntaxKind.SlashToken:
+                return compiler.module.f32.div(left, right);
+
+            }
+          } else if (type === doubleType) {
+            switch (expr.operatorToken.kind) {
+
+              case ts.SyntaxKind.PlusToken:
+                return compiler.module.f64.add(left, right);
+
+              case ts.SyntaxKind.MinusToken:
+                return compiler.module.f64.sub(left, right);
+
+              case ts.SyntaxKind.AsteriskToken:
+                return compiler.module.f64.mul(left, right);
+
+              case ts.SyntaxKind.SlashToken:
+                return compiler.module.f64.div(left, right);
+
+            }
+          } else if (type == longType || type === ulongType || (type === compiler.intptrType && compiler.intptrType.size === 8)) {
+            switch (expr.operatorToken.kind) {
+
+              case ts.SyntaxKind.PlusToken:
+                return compiler.module.i64.add(left, right);
+
+              case ts.SyntaxKind.MinusToken:
+                return compiler.module.i64.sub(left, right);
+
+              case ts.SyntaxKind.AsteriskToken:
+                return compiler.module.i64.mul(left, right);
+
+              case ts.SyntaxKind.SlashToken:
+                if (type.isSigned)
+                  return compiler.module.i64.div_s(left, right);
+                else
+                  return compiler.module.i64.div_u(left, right);
+
+              case ts.SyntaxKind.PercentToken:
+                if (type.isSigned)
+                  return compiler.module.i64.rem_s(left, right);
+                else
+                  return compiler.module.i64.rem_u(left, right);
+
+              case ts.SyntaxKind.AmpersandToken:
+                return compiler.module.i64.and(left, right);
+
+              case ts.SyntaxKind.BarToken:
+                return compiler.module.i64.or(left, right);
+
+              case ts.SyntaxKind.CaretToken:
+                return compiler.module.i64.xor(left, right);
+
+              case ts.SyntaxKind.LessThanLessThanToken:
+                return compiler.module.i64.shl(left, right);
+
+              case ts.SyntaxKind.GreaterThanGreaterThanToken:
+                if (type.isSigned)
+                  return compiler.module.i64.shr_s(left, right);
+                else
+                  return compiler.module.i64.shr_u(left, right);
+
+            }
+          } else {
+            switch (expr.operatorToken.kind) {
+
+              case ts.SyntaxKind.PlusToken:
+                return compiler.module.i32.add(left, right);
+
+              case ts.SyntaxKind.MinusToken:
+                return compiler.module.i32.sub(left, right);
+
+              case ts.SyntaxKind.AsteriskToken:
+                return compiler.module.i32.mul(left, right);
+
+              case ts.SyntaxKind.SlashToken:
+                if (type.isSigned)
+                  return compiler.module.i32.div_s(left, right);
+                else
+                  return compiler.module.i32.div_u(left, right);
+
+              case ts.SyntaxKind.PercentToken:
+                if (type.isSigned)
+                  return compiler.module.i32.rem_s(left, right);
+                else
+                  return compiler.module.i32.rem_u(left, right);
+
+              case ts.SyntaxKind.AmpersandToken:
+                return compiler.module.i32.and(left, right);
+
+              case ts.SyntaxKind.BarToken:
+                return compiler.module.i32.or(left, right);
+
+              case ts.SyntaxKind.CaretToken:
+                return compiler.module.i32.xor(left, right);
+
+              case ts.SyntaxKind.LessThanLessThanToken:
+                return compiler.module.i32.shl(left, right);
+
+              case ts.SyntaxKind.GreaterThanGreaterThanToken:
+                if (type.isSigned)
+                  return compiler.module.i32.shr_s(left, right);
+                else
+                  return compiler.module.i32.shr_u(left, right);
+
+            }
           }
+
+          throw Error("unsupported operator token kind: " + ts.SyntaxKind[expr.operatorToken.kind]);
         }
+
         case ts.SyntaxKind.FirstLiteralToken:
         {
-          const text = (<ts.LiteralExpression>node).text;
-          if (/^[1-9][0-9]+$/.test(text)) {
-            return compiler.module.i32.const(parseInt(text, 10));
+          let text = (<ts.LiteralExpression>node).text;
+          let radix: number;
+
+          if (/^[1-9][0-9]*$/.test(text)) {
+            radix = 10;
+          } else if (/^0[xX][0-9A-Fa-f]+$/.test(text)) {
+            radix = 16;
+            text = text.substring(2);
           } else {
-            throw Error("unsupported literal: " + text);
+            compiler.error(node, "unsupported literal", text);
+            text = "0";
+          }
+
+          let long: Long;
+          switch (type) {
+
+            case floatType:
+              return compiler.module.f32.const(parseFloat(text));
+
+            case doubleType:
+              return compiler.module.f64.const(parseFloat(text));
+
+            case byteType:
+            case sbyteType:
+            case shortType:
+            case ushortType:
+            case intType:
+            case uintType:
+              return compiler.module.i32.const(parseInt(text, radix) & ((type.size << 8) - 1));
+
+            case longType:
+            case ulongType:
+              long = Long.fromString(text, type === ulongType, radix);
+              return compiler.module.i64.const(long.low, long.high);
+
+            case boolType:
+              return compiler.module.i32.const(parseInt(text, radix) !== 0 ? 1 : 0);
+
+            case this.intptrType:
+              if (this.intptrType.size === 8) {
+                long = Long.fromString(text, true, radix);
+                return compiler.module.i64.const(long.low, long.high);
+              }
+              return compiler.module.i32.const(parseInt(text, radix) & ((type.size << 8) - 1));
           }
         }
+
         case ts.SyntaxKind.Identifier:
         {
           const id = <ts.Identifier>node;
           const local = vars[id.text];
+
           if (local == null)
             throw Error("undefined local variable: " + id.text);
-          return compiler.module.getLocal(local.index, local.type);
+
+          return convertExpressionIfNecessary(compiler.module.getLocal(local.index, local.type), local.type, type);
         }
+
         default:
           throw Error("unsupported expression node kind: " + ts.SyntaxKind[node.kind]);
       }
@@ -390,8 +708,10 @@ export class Compiler {
       body.push(this.module.return());
 
     const func = this.module.addFunction(name, wasmFunction.signature, [], body);
+
     if ((node.modifierFlagsCache & ts.ModifierFlags.Export) != 0)
       this.module.addExport(name, name);
+
     if (name === "start")
       this.module.setStart(func);
   }
