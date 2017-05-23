@@ -32,7 +32,7 @@ declare type double = number;
 declare type uintptr = number;
 
 /** A class describing a pointer to a data structure. */
-declare class IntPtr<T extends number | object> {
+declare class Ptr<T extends number | object> {
     public offset: uintptr;
     public value: T;
     constructor(offset: uintptr);

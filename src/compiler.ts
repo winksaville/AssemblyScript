@@ -804,11 +804,11 @@ export class Compiler {
     if (type.kind == ts.SyntaxKind.TypeReference) {
       var reference = <ts.TypeReferenceNode>type;
       switch (reference.typeName.getText()) {
-        case "IntPtr":
+        case "Ptr":
           if (reference.typeArguments.length !== 1)
-            throw Error("unexpected number of type parameters on IntPtr<T>");
+            throw Error("unexpected number of type parameters on Ptr<T>");
           if (reference.typeArguments[0].kind !== ts.SyntaxKind.TypeReference)
-            throw Error("unexpected type parameter on IntPtr<T>");
+            throw Error("unexpected type parameter on Ptr<T>");
           return this.uintptrType.withUnderlyingType(this.resolveType(<ts.TypeReferenceNode>reference.typeArguments[0]));
       }
     }
