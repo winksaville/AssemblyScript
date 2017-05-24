@@ -490,6 +490,24 @@ export class Compiler {
             case ts.SyntaxKind.SlashToken:
               return op.f32.div(left, right);
 
+            case ts.SyntaxKind.EqualsEqualsToken:
+              return op.f32.eq(left, right);
+
+            case ts.SyntaxKind.ExclamationEqualsToken:
+              return op.f32.ne(left, right);
+
+            case ts.SyntaxKind.GreaterThanToken:
+              return op.f32.gt(left, right);
+
+            case ts.SyntaxKind.GreaterThanEqualsToken:
+              return op.f32.ge(left, right);
+
+            case ts.SyntaxKind.LessThanToken:
+              return op.f32.lt(left, right);
+
+            case ts.SyntaxKind.LessThanEqualsToken:
+              return op.f32.le(left, right);
+
           }
 
         } else if (resultType === doubleType) {
@@ -509,6 +527,24 @@ export class Compiler {
 
             case ts.SyntaxKind.SlashToken:
               return op.f64.div(left, right);
+
+            case ts.SyntaxKind.EqualsEqualsToken:
+              return op.f64.eq(left, right);
+
+            case ts.SyntaxKind.ExclamationEqualsToken:
+              return op.f64.ne(left, right);
+
+            case ts.SyntaxKind.GreaterThanToken:
+              return op.f64.gt(left, right);
+
+            case ts.SyntaxKind.GreaterThanEqualsToken:
+              return op.f64.ge(left, right);
+
+            case ts.SyntaxKind.LessThanToken:
+              return op.f64.lt(left, right);
+
+            case ts.SyntaxKind.LessThanEqualsToken:
+              return op.f64.le(left, right);
 
           }
 
@@ -557,6 +593,36 @@ export class Compiler {
               else
                 return op.i64.shr_u(left, right);
 
+            case ts.SyntaxKind.EqualsEqualsToken:
+              return op.i64.eq(left, right);
+
+            case ts.SyntaxKind.ExclamationEqualsToken:
+              return op.i64.ne(left, right);
+
+            case ts.SyntaxKind.GreaterThanToken:
+              if (resultType.isSigned)
+                return op.i64.gt_s(left, right);
+              else
+                return op.i64.gt_u(left, right);
+
+            case ts.SyntaxKind.GreaterThanEqualsToken:
+              if (resultType.isSigned)
+                return op.i64.ge_s(left, right);
+              else
+                return op.i64.ge_u(left, right);
+
+            case ts.SyntaxKind.LessThanToken:
+              if (resultType.isSigned)
+                return op.i64.lt_s(left, right);
+              else
+                return op.i64.lt_u(left, right);
+
+            case ts.SyntaxKind.LessThanEqualsToken:
+              if (resultType.isSigned)
+                return op.i64.le_s(left, right);
+              else
+                return op.i64.le_u(left, right);
+
           }
 
         } else { // some i32 type
@@ -603,6 +669,36 @@ export class Compiler {
                 return op.i32.shr_s(left, right);
               else
                 return op.i32.shr_u(left, right);
+
+            case ts.SyntaxKind.EqualsEqualsToken:
+              return op.i32.eq(left, right);
+
+            case ts.SyntaxKind.ExclamationEqualsToken:
+              return op.i32.ne(left, right);
+
+            case ts.SyntaxKind.GreaterThanToken:
+              if (resultType.isSigned)
+                return op.i32.gt_s(left, right);
+              else
+                return op.i32.gt_u(left, right);
+
+            case ts.SyntaxKind.GreaterThanEqualsToken:
+              if (resultType.isSigned)
+                return op.i32.ge_s(left, right);
+              else
+                return op.i32.ge_u(left, right);
+
+            case ts.SyntaxKind.LessThanToken:
+              if (resultType.isSigned)
+                return op.i32.lt_s(left, right);
+              else
+                return op.i32.lt_u(left, right);
+
+            case ts.SyntaxKind.LessThanEqualsToken:
+              if (resultType.isSigned)
+                return op.i32.le_s(left, right);
+              else
+                return op.i32.le_u(left, right);
 
           }
         }

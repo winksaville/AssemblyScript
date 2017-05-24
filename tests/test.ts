@@ -17,7 +17,7 @@ class MyClass {
 }
 
 export function add(a: int, b: float): float {
-  return (a as float) + b + 1.5;
+  return (a as float) + b + 1e-06;
 }
 
 function start(): void {
