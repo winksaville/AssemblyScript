@@ -9,7 +9,7 @@ declare module binaryen {
   class Module {
 
     addFunctionType(name: string, resultType: Type, paramTypes: Type[]): Signature;
-    addFunction(name: string, functionType: Signature, varTypes: Type[], body: Statement[]): binaryen.Function;
+    addFunction(name: string, functionType: Signature, varTypes: Type[], body: Statement): binaryen.Function;
     addImport(internalName: string, externalModuleName: string, externalBaseName: string, functionType?: Signature): void;
     addExport(internalName: string, externalName: string): void;
     setFunctionTable(funcs: number[]): void;
@@ -205,9 +205,9 @@ declare module binaryen {
     };
 
     block(label: string, children: Statement[]): Statement;
-    if(condition: I32Expression, ifTrue: Statement, ifFalse: Statement): Statement;
+    if(condition: I32Expression, ifTrue: Statement, ifFalse?: Statement): Statement;
     loop(label: string, body: Statement): Statement;
-    break(label: string, condition: I32Expression, value?: I32Expression): Statement;
+    break(label: string, condition?: I32Expression, value?: I32Expression): Statement;
     switch(labels: string[], defaultLabel: string, condition: I32Expression, value?: I32Expression): Statement;
     call(name: string, operands: Expression[], type: Type): Expression;
     callIndirect(target: I32Expression, operands: Expression[], type: Type): Expression;

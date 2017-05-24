@@ -13,6 +13,7 @@ import {
 import {
   WasmModule,
   WasmSignature,
+  WasmStatement,
   WasmExpression,
   WasmTypeKind,
   WasmType,
@@ -58,6 +59,7 @@ export class Compiler {
   signatures: { [key: string]: WasmSignature } = {};
   constants: { [key: string]: WasmConstant } = {};
   profiler = new Profiler();
+  currentFunction: WasmFunction;
   currentLocals: { [key: string]: WasmVariable };
 
   static compile(filename: string): WasmModule {
@@ -99,6 +101,8 @@ export class Compiler {
       if (diagnostic.category === ts.DiagnosticCategory.Error)
         return null;
     }
+
+    compiler.module.validate();
 
     return compiler.module;
   }
@@ -331,48 +335,19 @@ export class Compiler {
       }
     });
 
+    this.currentFunction = wasmFunction;
     this.currentLocals = locals;
 
     ts.forEachChild(node.body, visit);
 
-    function visit(node: ts.Node) {
-      switch (node.kind) {
-
-        case ts.SyntaxKind.ReturnStatement:
-        {
-          const stmt = <ts.ReturnStatement>node;
-          if (wasmFunction.returnType === voidType) {
-            if (stmt.getChildCount() > 1) // return keyword
-              compiler.error(stmt, "A function without a return type cannot return a value", wasmFunction.name);
-            body.push(op.return());
-          } else {
-            if (stmt.getChildCount() < 2) // return keyword + expression
-              compiler.error(stmt, "A function with a return type must return a value", wasmFunction.name);
-            const expr = <ts.Expression>stmt.getChildAt(1);
-            body.push(
-              op.return(
-                compiler.convertValue(
-                  expr,
-                  compiler.compileExpression(expr, wasmFunction.returnType),
-                  (<any>expr).wasmType,
-                  wasmFunction.returnType,
-                  false
-                )
-              )
-            );
-          }
-          break;
-        }
-
-        default:
-          compiler.error(node, "Unsupported function body node", ts.SyntaxKind[node.kind]);
-      }
+    function visit(node: ts.Statement) {
+      body.push(compiler.compileStatement(node));
     }
 
-    if (body.length == 0)
+    if (!body.length)
       body.push(this.module.return());
 
-    return this.module.addFunction(wasmFunction.name, wasmFunction.signature, [], body);
+    return this.module.addFunction(wasmFunction.name, wasmFunction.signature, [], op.block("", body));
   }
 
   compileFunction(node: ts.FunctionDeclaration): void {
@@ -420,6 +395,106 @@ export class Compiler {
         // default:
         // already reported by initialize
       }
+    }
+  }
+
+  compileStatement(node: ts.Statement): WasmStatement {
+    const op = this.module;
+
+    console.log("STMT: " + ts.SyntaxKind[node.kind]);
+
+    switch (node.kind) {
+
+      case ts.SyntaxKind.IfStatement:
+      {
+        const stmt = <ts.IfStatement>node;
+        return op.if(
+          this.convertValue(stmt.expression, this.compileExpression(stmt.expression, intType), (<any>stmt.expression).wasmType, intType, true),
+          this.compileStatement(stmt.thenStatement),
+          stmt.elseStatement ? this.compileStatement(stmt.elseStatement) : undefined
+        );
+      }
+
+      // TODO
+      /* case ts.SyntaxKind.SwitchStatement:
+      {
+        const stmt = <ts.SwitchStatement>node;
+        const blocks: WasmStatement[] = new Array(stmt.caseBlock.clauses.length);
+        const labels: string[] = new Array(blocks.length);
+        stmt.caseBlock.clauses.forEach((clause, i) => {
+          const label = "case" + i;
+          labels[i] = label;
+          blocks[i] = op.block(label, clause.statements.map(stmt => this.compileStatement(stmt)));
+        });
+        return op.block("", [
+          op.switch(labels, "default", this.compileExpression(stmt.expression, intType))
+        ].concat(blocks));
+      } */
+
+      case ts.SyntaxKind.WhileStatement:
+      {
+        const stmt = <ts.WhileStatement>node;
+        return op.loop("break", op.block("continue", [
+          op.break("break", this.convertValue(stmt.expression, this.compileExpression(stmt.expression, intType), (<any>stmt.expression).wasmType, intType, true)),
+          this.compileStatement(stmt.statement)
+        ]));
+      }
+
+      case ts.SyntaxKind.DoStatement:
+      {
+        const stmt = <ts.WhileStatement>node;
+        return op.loop("break", op.block("continue", [
+          this.compileStatement(stmt.statement),
+          op.break("break", this.convertValue(stmt.expression, this.compileExpression(stmt.expression, intType), (<any>stmt.expression).wasmType, intType, true))
+        ]));
+      }
+
+      case ts.SyntaxKind.Block:
+      {
+        const stmt = <ts.Block>node;
+        if (stmt.statements.length === 0)
+          return op.nop();
+        else if (stmt.statements.length === 1)
+          return this.compileStatement(stmt.statements[0]);
+        else
+          return op.block("", stmt.statements.map(stmt => this.compileStatement(stmt)));
+      }
+
+      case ts.SyntaxKind.ContinueStatement:
+        return op.break("continue");
+
+      case ts.SyntaxKind.BreakStatement:
+        return op.break("break");
+
+      case ts.SyntaxKind.ReturnStatement:
+      {
+        const stmt = <ts.ReturnStatement>node;
+
+        if (this.currentFunction.returnType === voidType) {
+
+          if (stmt.getChildCount() > 1) // return keyword
+            this.error(stmt, "A function without a return type cannot return a value", this.currentFunction.name);
+          return op.return();
+
+        } else {
+
+          if (stmt.getChildCount() < 2) // return keyword + expression
+            this.error(stmt, "A function with a return type must return a value", this.currentFunction.name);
+          const expr = <ts.Expression>stmt.getChildAt(1);
+          return op.return(
+            this.convertValue(
+              expr,
+              this.compileExpression(expr, this.currentFunction.returnType),
+              (<any>expr).wasmType,
+              this.currentFunction.returnType,
+              false
+            )
+          );
+        }
+      }
+
+      default:
+        this.error(node, "Unsupported statement node", ts.SyntaxKind[node.kind]);
     }
   }
 
@@ -825,7 +900,7 @@ export class Compiler {
     }
   }
 
-  convertValue(node: ts.Node, expr: WasmExpression, fromType: WasmType, toType: WasmType, explicit: boolean) {
+  convertValue(node: ts.Node, expr: WasmExpression, fromType: WasmType, toType: WasmType, explicit: boolean): WasmExpression {
     if (fromType.kind === toType.kind)
       return expr;
 
