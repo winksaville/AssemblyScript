@@ -38,6 +38,8 @@ const voidType      = new WasmType(WasmTypeKind.void   , 0);
 const uintptrType32 = new WasmType(WasmTypeKind.uintptr, 4);
 const uintptrType64 = new WasmType(WasmTypeKind.uintptr, 8);
 
+const MEM_MAX_32 = (1 << 16) - 1; // 65535 (pageSize) * 65535 (n) ^= 4GB
+
 function isExport(node: ts.Node): boolean {
   return (node.modifierFlagsCache & ts.ModifierFlags.Export) !== 0;
 }
@@ -61,6 +63,7 @@ export class Compiler {
   profiler = new Profiler();
   currentFunction: WasmFunction;
   currentLocals: { [key: string]: WasmVariable };
+  currentBlockIndex: -1;
 
   static compile(filename: string): WasmModule {
     let program = ts.createProgram([ __dirname + "/../types/assembly.d.ts", filename ], {
@@ -102,7 +105,7 @@ export class Compiler {
         return null;
     }
 
-    compiler.module.validate();
+    // compiler.module.validate();
 
     return compiler.module;
   }
@@ -139,7 +142,7 @@ export class Compiler {
   initialize(): void {
     const compiler = this;
 
-    this.module.setMemory(256, 0, "memory", []); // "unexpected true: memory max >= initial" (but the result is correct: growable)
+    this.module.setMemory(256, MEM_MAX_32, "memory", []);
 
     // TODO: it seem that binaryen.js doesn't support importing memory yet
 
@@ -337,6 +340,7 @@ export class Compiler {
 
     this.currentFunction = wasmFunction;
     this.currentLocals = locals;
+    this.currentBlockIndex = -1;
 
     ts.forEachChild(node.body, visit);
 
@@ -401,8 +405,6 @@ export class Compiler {
   compileStatement(node: ts.Statement): WasmStatement {
     const op = this.module;
 
-    console.log("STMT: " + ts.SyntaxKind[node.kind]);
-
     switch (node.kind) {
 
       case ts.SyntaxKind.IfStatement:
@@ -415,37 +417,47 @@ export class Compiler {
         );
       }
 
-      // TODO
       /* case ts.SyntaxKind.SwitchStatement:
       {
         const stmt = <ts.SwitchStatement>node;
         const blocks: WasmStatement[] = new Array(stmt.caseBlock.clauses.length);
         const labels: string[] = new Array(blocks.length);
+        let hasDefault = false;
         stmt.caseBlock.clauses.forEach((clause, i) => {
-          const label = "case" + i;
+          let label: string;
+          if (clause.kind == ts.SyntaxKind.DefaultClause) {
+            if (hasDefault)
+              this.error(clause, "A switch statement cannot have multiple default branches");
+            hasDefault = true;
+            label = "default";
+          } else {
+            label = "case" + i;
+          }
           labels[i] = label;
           blocks[i] = op.block(label, clause.statements.map(stmt => this.compileStatement(stmt)));
         });
-        return op.block("", [
-          op.switch(labels, "default", this.compileExpression(stmt.expression, intType))
+        return op.block("break", [
+          op.switch(labels, hasDefault ? "default" : "break", this.compileExpression(stmt.expression, intType))
         ].concat(blocks));
       } */
 
       case ts.SyntaxKind.WhileStatement:
       {
+        ++this.currentBlockIndex;
         const stmt = <ts.WhileStatement>node;
-        return op.loop("break", op.block("continue", [
-          op.break("break", this.convertValue(stmt.expression, this.compileExpression(stmt.expression, intType), (<any>stmt.expression).wasmType, intType, true)),
+        return op.loop("break$" + this.currentBlockIndex, op.block("continue$" + this.currentBlockIndex, [
+          op.break("break$" + this.currentBlockIndex, op.i32.eqz(this.convertValue(stmt.expression, this.compileExpression(stmt.expression, intType), (<any>stmt.expression).wasmType, intType, true))),
           this.compileStatement(stmt.statement)
         ]));
       }
 
       case ts.SyntaxKind.DoStatement:
       {
+        ++this.currentBlockIndex;
         const stmt = <ts.WhileStatement>node;
-        return op.loop("break", op.block("continue", [
+        return op.loop("break$" + this.currentBlockIndex, op.block("continue$" + this.currentBlockIndex, [
           this.compileStatement(stmt.statement),
-          op.break("break", this.convertValue(stmt.expression, this.compileExpression(stmt.expression, intType), (<any>stmt.expression).wasmType, intType, true))
+          op.break("break$" + this.currentBlockIndex, op.i32.eqz(this.convertValue(stmt.expression, this.compileExpression(stmt.expression, intType), (<any>stmt.expression).wasmType, intType, true)))
         ]));
       }
 
@@ -461,10 +473,10 @@ export class Compiler {
       }
 
       case ts.SyntaxKind.ContinueStatement:
-        return op.break("continue");
+        return op.break("continue$" + this.currentBlockIndex);
 
       case ts.SyntaxKind.BreakStatement:
-        return op.break("break");
+        return op.break("break$" + this.currentBlockIndex);
 
       case ts.SyntaxKind.ReturnStatement:
       {
@@ -894,6 +906,27 @@ export class Compiler {
 
         this.error(node, "Unsupported property access");
       }
+
+      case ts.SyntaxKind.TrueKeyword:
+
+        if (contextualType.isLong) {
+          (<any>node).wasmType = longType;
+          return op.i64.const(1, 0);
+        } else {
+          (<any>node).wasmType = intType;
+          return op.i32.const(1);
+        }
+
+      case ts.SyntaxKind.FalseKeyword:
+      case ts.SyntaxKind.NullKeyword:
+
+        if (contextualType.isLong) {
+          (<any>node).wasmType = longType;
+          return op.i64.const(0, 0);
+        } else {
+          (<any>node).wasmType = intType;
+          return op.i32.const(0);
+        }
 
       default:
         this.error(node, "Unsupported expression node", ts.SyntaxKind[node.kind]);

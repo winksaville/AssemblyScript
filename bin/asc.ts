@@ -8,10 +8,12 @@ import * as pkg from "../package.json";
 const argv = minimist(process.argv.slice(2), {
   alias: {
     "out": [ "o", "outFile" ],
-    "optimize": [ "O" ]
+    "validate": [ "v" ],
+    "optimize": [ "O" ],
+    "text": [ "t" ]
   },
   string: [ "out" ],
-  boolean: [ "text", "optimize" ]
+  boolean: [ "text", "optimize", "validate" ]
 });
 
 const files = argv._;
@@ -23,8 +25,9 @@ if (files.length !== 1) {
     "",
     "Options:",
     " -o, --out         Specifies the output file name.",
+    " -v, --validate    Validates the module.",
     " -O, --optimize    Runs optimizing binaryen IR passes.",
-    " --text            Emits text format instead of a binary.",
+    " -t, --text        Emits text format instead of a binary.",
     ""
   ].join("\n"));
   process.exit(1);
@@ -33,6 +36,9 @@ if (files.length !== 1) {
 const wasmModule = Compiler.compile(files[0]);
 if (!wasmModule)
   process.exit(1);
+
+if (argv.validate)
+  wasmModule.validate();
 
 if (argv.optimize)
   wasmModule.optimize();
