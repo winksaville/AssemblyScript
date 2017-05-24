@@ -31,11 +31,18 @@ export class WasmType {
   kind: WasmTypeKind;
   size: number;
   underlyingType: WasmType;
+  mask32: number;
+  shift32: number;
 
   constructor(kind: WasmTypeKind, size: number, underlyingType: WasmType = null) {
     this.kind = kind;
     this.size = size;
     this.underlyingType = underlyingType;
+
+    if (this.isByte || this.isShort) {
+      this.mask32 = (size << 8) - 1;
+      this.shift32 = 32 - (size << 3);
+    }
   }
 
   get isInteger(): boolean {

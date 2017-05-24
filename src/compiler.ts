@@ -879,31 +879,33 @@ export class Compiler {
     } else if (fromType.size === 8 && toType.size <= 4) { // long to int
 
       if (!explicit) illegalImplicitConversion();
-      return op.i32.wrap(expr);
 
-    } else { // int to other int
+      expr = op.i32.wrap(expr);
+      fromType = fromType.isSigned ? intType : uintType;
 
-      if (fromType.size < toType.size)
-        return expr;
+      // fallthrough
+    }
 
-      if (!explicit) illegalImplicitConversion();
+    // int to other int
 
-      if (toType.isSigned) { // sign extend
-        const shift = 32 - (toType.size << 3);
-        return op.i32.shl(
-          op.i32.shr_s(
-            expr,
-            op.i32.const(shift)
-          ),
-          op.i32.const(shift)
-        );
-      } else { // mask
-        return op.i32.and(
+    if (fromType.size < toType.size)
+      return expr;
+
+    if (!explicit) illegalImplicitConversion();
+
+    if (toType.isSigned) {
+      return op.i32.shl(
+        op.i32.shr_s(
           expr,
-          op.i32.const((toType.size << 8) - 1)
-        );
-      }
-
+          op.i32.const(toType.shift32)
+        ),
+        op.i32.const(toType.shift32)
+      );
+    } else {
+      return op.i32.and(
+        expr,
+        op.i32.const(toType.mask32)
+      );
     }
   }
 
