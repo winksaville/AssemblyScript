@@ -1,4 +1,12 @@
-#!/usr/bin/env ts-node
-import { Compiler } from "../compiler";
+#!/usr/bin/env node
+var child_process = require("child_process");
+var path = require("path");
+var tsnodePkg = require("ts-node/package.json");
 
-const compiler = Compiler.compile(process.argv[2]);
+child_process.spawn("node", [
+  path.join("node_modules", "ts-node", path.normalize(tsnodePkg.bin["ts-node"])),
+  "bin/asc.ts"
+].concat(process.argv.slice(2)), {
+  cwd: path.join(__dirname, ".."),
+  stdio: "inherit"
+}).on("close", process.exit);
