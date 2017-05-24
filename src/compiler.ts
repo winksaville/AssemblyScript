@@ -782,7 +782,41 @@ export class Compiler {
           }
         }
 
-        this.error(expr.operatorToken, "Unsupported operator token", ts.SyntaxKind[expr.operatorToken.kind]);
+        this.error(expr.operatorToken, "Unsupported binary operator", ts.SyntaxKind[expr.operatorToken.kind]);
+      }
+
+      case ts.SyntaxKind.PrefixUnaryExpression:
+      {
+        const expr = <ts.PrefixUnaryExpression>node;
+
+        switch (expr.operator) {
+
+          case ts.SyntaxKind.ExclamationToken:
+            (<any>expr).wasmType = boolType;
+            return op.i32.eqz(this.compileExpression(expr.operand, boolType));
+
+          // TODO: + and - always convert to a double like in JS - is that what we want?
+          case ts.SyntaxKind.PlusToken:
+            (<any>expr).wasmType = doubleType;
+            return this.convertValue(expr.operand, this.compileExpression(expr.operand, contextualType), (<any>expr.operand).wasmType, doubleType, true);
+
+          case ts.SyntaxKind.MinusToken:
+            (<any>expr).wasmType = doubleType;
+            return op.i32.mul(this.convertValue(expr.operand, this.compileExpression(expr.operand, contextualType), (<any>expr.operand).wasmType, doubleType, true), op.i32.const(-1));
+
+          case ts.SyntaxKind.TildeToken:
+
+            if (contextualType.isLong) {
+              (<any>expr).wasmType = longType;
+              return op.i64.xor(this.convertValue(expr.operand, this.compileExpression(expr.operand, contextualType), (<any>expr.operand).wasmType, longType, true), op.i64.const(-1, -1));
+            } else {
+              (<any>expr).wasmType = intType;
+              return op.i32.xor(this.convertValue(expr.operand, this.compileExpression(expr.operand, contextualType), (<any>expr.operand).wasmType, intType, true), op.i32.const(-1));
+            }
+
+          default:
+            this.error(expr, "Unsupported unary operator", ts.SyntaxKind[expr.operator]);
+        }
       }
 
       case ts.SyntaxKind.FirstLiteralToken:
@@ -790,7 +824,12 @@ export class Compiler {
         let text = (<ts.LiteralExpression>node).text;
         let radix: number;
 
-        if (/^[1-9][0-9]*$/.test(text)) {
+        if (text === "true")
+          text = "1";
+        else if (text === "false")
+          text = "0";
+
+        if (/^(?:0|[1-9][0-9]*)$/.test(text)) {
           radix = 10;
         } else if (/^0[xX][0-9A-Fa-f]+$/.test(text)) {
           radix = 16;
@@ -929,11 +968,11 @@ export class Compiler {
     if (fromType.kind === toType.kind)
       return expr;
 
-    const compiler = this;
+    const $this = this;
     const op = this.module;
 
     function illegalImplicitConversion() {
-      compiler.error(node, "Cannot convert from '" + fromType + "' to '" + toType + "' without a cast");
+      $this.error(node, "Cannot convert from '" + fromType + "' to '" + toType + "' without a cast");
       explicit = true; // report this only once for the topmost node
     }
 
