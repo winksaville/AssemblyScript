@@ -16,8 +16,8 @@ class MyClass {
   }
 }
 
-export function add(a: int, b: int): byte {
-  return (a as short) + b + MyEnum.ONE;
+export function add(a: int, b: float): byte {
+  return (a + (b as int)) as byte;
 }
 
 function start(): void {

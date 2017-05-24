@@ -122,3 +122,22 @@ export function formatDiagnosticsWithColorAndContext(diagnostics: ts.Diagnostic[
   }
   return output;
 }
+
+export function createDiagnosticForNode(node: ts.Node, category: ts.DiagnosticCategory, message: string, arg1?: string) {
+  let realMessage = message;
+  if (arg1 != null)
+    realMessage += ": " + arg1;
+  return ts.createDiagnosticForNode(node, {
+    key: message.toLowerCase().replace(/\s+/g, "_").replace(/[^\w]/g, ""),
+    category: category,
+    code: <any>"-AS",
+    message: realMessage
+  });
+}
+
+export function printDiagnostic(diagnostic: ts.Diagnostic): void {
+  if (diagnostic.category == ts.DiagnosticCategory.Message)
+    process.stderr.write(formatDiagnostics([ diagnostic ]));
+  else
+    process.stderr.write(formatDiagnosticsWithColorAndContext([ diagnostic ]) + "\n");
+}

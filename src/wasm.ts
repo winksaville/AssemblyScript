@@ -1,5 +1,16 @@
 import * as binaryen from "../lib/binaryen";
 
+export {
+  Module as WasmModule,
+  Signature as WasmSignature,
+  Statement as WasmStatement,
+  Expression as WasmExpression,
+  I32Expression as WasmI32Expression,
+  I64Expression as WasmI64Expression,
+  F32Expression as WasmF32Expression,
+  F64Expression as WasmF64Expression
+} from "../lib/binaryen";
+
 export enum WasmTypeKind {
   byte,
   sbyte,
@@ -87,6 +98,8 @@ export class WasmType {
       case WasmTypeKind.int:
       case WasmTypeKind.uint:
         return true;
+      case WasmTypeKind.uintptr:
+        return this.size === 4;
     }
     return false;
   }
@@ -96,6 +109,8 @@ export class WasmType {
       case WasmTypeKind.long:
       case WasmTypeKind.ulong:
         return true;
+      case WasmTypeKind.uintptr:
+        return this.size === 8;
     }
     return false;
   }
@@ -172,6 +187,10 @@ export class WasmType {
 
     }
     throw Error("unexpected type");
+  }
+
+  toString(): string {
+    return WasmTypeKind[this.kind];
   }
 }
 

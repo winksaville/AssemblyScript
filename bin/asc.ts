@@ -3,7 +3,6 @@
 import { Compiler } from "../src/compiler";
 import * as fs from "fs";
 import * as minimist from "minimist";
-import * as chalk from "chalk";
 import * as pkg from "../package.json";
 
 const argv = minimist(process.argv.slice(2), {

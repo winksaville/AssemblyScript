@@ -226,15 +226,16 @@ declare module binaryen {
 
   }
 
-  interface Type extends Number {}
-  interface Statement extends Number {}
-  interface Signature extends Number {}
-  interface Function extends Number {}
-  interface Expression extends Number {}
-  interface I32Expression extends Expression {}
-  interface I64Expression extends Expression {}
-  interface F32Expression extends Expression {}
-  interface F64Expression extends Expression {}
+  // These are actually pointers internally
+  abstract class Type {}
+  abstract class Statement {}
+  abstract class Signature {}
+  abstract class Function {}
+  abstract class Expression {}
+  abstract class I32Expression extends Expression {}
+  abstract class I64Expression extends Expression {}
+  abstract class F32Expression extends Expression {}
+  abstract class F64Expression extends Expression {}
 }
 
 export = binaryen;
