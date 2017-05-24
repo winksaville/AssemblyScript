@@ -68,7 +68,7 @@ export class Compiler {
   currentBlockIndex: -1;
 
   static compile(filename: string): WasmModule {
-    let program = ts.createProgram([ __dirname + "/../types/assembly.d.ts", filename ], {
+    let program = ts.createProgram([ __dirname + "/../assembly.d.ts", filename ], {
       target: ts.ScriptTarget.Latest,
       module: ts.ModuleKind.None,
       noLib: true,

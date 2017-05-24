@@ -1,8 +1,8 @@
-/** An 8-bit unsigned integer. */
-declare type byte = number;
-
 /** An 8-bit signed integer. */
 declare type sbyte = number;
+
+/** An 8-bit unsigned integer. */
+declare type byte = number;
 
 /** A 16-bit signed integer. */
 declare type short = number;
@@ -22,6 +22,9 @@ declare type long = number;
 /** A 64-bit unsigned integer. */
 declare type ulong = number;
 
+/** A 1-bit unsigned integer.*/
+declare type bool = boolean;
+
 /** A 32-bit float. */
 declare type float = number;
 
@@ -30,9 +33,6 @@ declare type double = number;
 
 /** A 32-bit unsigned integer when targeting WASM32 respectively a 64-bit unsigned integer when targeting WASM64. */
 declare type uintptr = number;
-
-/** A 32-bit unsigned integer with a value of 0 or 1 */
-declare type bool = boolean;
 
 /** A class describing a pointer to a data structure. */
 declare class Ptr<T extends number | object> {
