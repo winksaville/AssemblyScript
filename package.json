@@ -17,6 +17,7 @@
     "typescript": "^2.4.0-dev.20170523"
   },
   "scripts": {
+    "build": "tsc -p ./bin/asc.tsconfig.json",
     "test": "node bin/asc --validate --text tests/test.ts"
   }
 }
