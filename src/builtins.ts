@@ -93,7 +93,10 @@ export function nearest(compiler: Compiler, node: ts.Expression, expr: WasmExpre
   throw Error("unsupported operation");
 }
 
-export function min(compiler: Compiler, node: ts.Expression[], expr: WasmExpression[]): WasmExpression {
+type TypeScriptNodePair = [ ts.Node, ts.Node ];
+type WasmExpressionPair = [ WasmExpression, WasmExpression ];
+
+export function min(compiler: Compiler, node: TypeScriptNodePair, expr: WasmExpressionPair): WasmExpression {
   if ((<any>node[0]).wasmType === (<any>node[1]).wasmType) {
     switch ((<any>node[0]).wasmType) {
 
@@ -107,7 +110,7 @@ export function min(compiler: Compiler, node: ts.Expression[], expr: WasmExpress
   throw Error("unsupported operation");
 }
 
-export function max(compiler: Compiler, node: ts.Expression, expr: WasmExpression[]): WasmExpression {
+export function max(compiler: Compiler, node: TypeScriptNodePair, expr: WasmExpressionPair): WasmExpression {
   if ((<any>node[0]).wasmType === (<any>node[1]).wasmType) {
     switch ((<any>node[0]).wasmType) {
 

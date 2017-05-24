@@ -788,35 +788,86 @@ export class Compiler {
       case ts.SyntaxKind.PrefixUnaryExpression:
       {
         const expr = <ts.PrefixUnaryExpression>node;
+        const unary = this.compileExpression(expr.operand, contextualType);
+        const type = (<any>expr.operand).wasmType;
 
         switch (expr.operator) {
 
           case ts.SyntaxKind.ExclamationToken:
-            (<any>expr).wasmType = boolType;
-            return op.i32.eqz(this.compileExpression(expr.operand, boolType));
+            (<any>node).wasmType = boolType;
 
-          // TODO: + and - always convert to a double like in JS - is that what we want?
-          case ts.SyntaxKind.PlusToken:
-            (<any>expr).wasmType = doubleType;
-            return this.convertValue(expr.operand, this.compileExpression(expr.operand, contextualType), (<any>expr.operand).wasmType, doubleType, true);
+            if (type === floatType)
+              return op.f32.eq(unary, op.f32.const(0));
+
+            else if (type === doubleType)
+              return op.f64.eq(unary, op.f64.const(0));
+
+            else if (type.isLong)
+              return op.i64.eqz(unary);
+
+            else
+              return op.i32.eqz(unary);
+
+          case ts.SyntaxKind.PlusToken: // noop
+            return unary;
 
           case ts.SyntaxKind.MinusToken:
-            (<any>expr).wasmType = doubleType;
-            return op.i32.mul(this.convertValue(expr.operand, this.compileExpression(expr.operand, contextualType), (<any>expr.operand).wasmType, doubleType, true), op.i32.const(-1));
+          {
+            (<any>node).wasmType = type;
+
+            switch (type) {
+
+              case sbyteType:
+              case byteType:
+              case shortType:
+              case ushortType:
+                return this.convertValue(node, op.i32.sub(op.i32.const(0), unary), intType, type, true);
+
+              case intType:
+              case uintType:
+              case uintptrType32:
+                return op.i32.sub(op.i32.const(0), unary);
+
+              case longType:
+              case ulongType:
+              case uintptrType64:
+                return op.i64.sub(op.i64.const(0, 0), unary);
+
+              case floatType:
+                return op.f32.neg(expr.operand);
+
+              case doubleType:
+                return op.f64.neg(expr.operand);
+            }
+          }
 
           case ts.SyntaxKind.TildeToken:
 
-            if (contextualType.isLong) {
-              (<any>expr).wasmType = longType;
-              return op.i64.xor(this.convertValue(expr.operand, this.compileExpression(expr.operand, contextualType), (<any>expr.operand).wasmType, longType, true), op.i64.const(-1, -1));
-            } else {
-              (<any>expr).wasmType = intType;
-              return op.i32.xor(this.convertValue(expr.operand, this.compileExpression(expr.operand, contextualType), (<any>expr.operand).wasmType, intType, true), op.i32.const(-1));
-            }
+            if (type.isLong) {
 
-          default:
-            this.error(expr, "Unsupported unary operator", ts.SyntaxKind[expr.operator]);
+              (<any>node).wasmType = type;
+              return op.i64.xor(unary, op.i64.const(-1, -1));
+
+            } else if (type.isInt) {
+
+              (<any>node).wasmType = type;
+              return op.i32.xor(unary, op.i32.const(-1));
+
+            } else if (contextualType.isLong) {
+
+              (<any>node).wasmType = contextualType;
+              return op.i64.xor(this.convertValue(expr.operand, unary, type, contextualType, true), op.i64.const(-1, -1));
+
+            } else {
+
+              (<any>node).wasmType = intType;
+              return op.i32.xor(this.convertValue(expr.operand, unary, type, intType, true), op.i32.const(-1));
+
+            }
         }
+
+        this.error(expr, "Unsupported unary operation", ts.SyntaxKind[expr.operator]);
+        return unary;
       }
 
       case ts.SyntaxKind.FirstLiteralToken:
