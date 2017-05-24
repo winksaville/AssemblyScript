@@ -1,183 +1,32 @@
-/// <reference types="node" />
-
 import * as ts from "byots";
 import * as binaryen from "../lib/binaryen";
 import * as Long from "long";
-import { formatDiagnostics, formatDiagnosticsWithColorAndContext } from "./util/diagnostics";
+import { formatDiagnostics, formatDiagnosticsWithColorAndContext } from "./diagnostics";
+import { Profiler } from "./profiler";
 
-export enum WasmTypeKind {
-  byte,
-  sbyte,
-  short,
-  ushort,
-  int,
-  uint,
-  long,
-  ulong,
-  bool,
-  float,
-  double,
-  uintptr,
-  void
-}
+import {
+  WasmTypeKind,
+  WasmType,
+  WasmFunctionFlags,
+  WasmFunction,
+  WasmVariable,
+  WasmConstant
+} from "./wasm";
 
-export class WasmType {
-  kind: WasmTypeKind;
-  size: number;
-  underlyingType: WasmType;
-
-  constructor(kind: WasmTypeKind, size: number, underlyingType: WasmType = null) {
-    this.kind = kind;
-    this.size = size;
-    this.underlyingType = underlyingType;
-  }
-
-  get isInteger(): boolean {
-    switch (this.kind) {
-      case WasmTypeKind.byte:
-      case WasmTypeKind.sbyte:
-      case WasmTypeKind.short:
-      case WasmTypeKind.ushort:
-      case WasmTypeKind.int:
-      case WasmTypeKind.uint:
-      case WasmTypeKind.long:
-      case WasmTypeKind.ulong:
-      case WasmTypeKind.bool:
-      case WasmTypeKind.uintptr:
-        return true;
-    }
-    return false;
-  }
-
-  get isFloat(): boolean {
-    switch (this.kind) {
-      case WasmTypeKind.float:
-      case WasmTypeKind.double:
-        return true;
-    }
-    return false;
-  }
-
-  get isSigned(): boolean {
-    switch (this.kind) {
-      case WasmTypeKind.sbyte:
-      case WasmTypeKind.short:
-      case WasmTypeKind.int:
-      case WasmTypeKind.long:
-        return true;
-    }
-    return false;
-  }
-
-  withUnderlyingType(underlyingType: WasmType): WasmType {
-    if (underlyingType == null)
-      throw Error("underlying type must be specified");
-    if (this.kind != WasmTypeKind.uintptr)
-      throw Error("only pointers can have an underlying type");
-    const type = new WasmType(this.kind, this.size);
-    type.underlyingType = underlyingType;
-    return type;
-  }
-
-  toSignatureIdentifier(uintptrType: WasmType): string {
-    switch (this.kind) {
-
-      case WasmTypeKind.byte:
-      case WasmTypeKind.short:
-      case WasmTypeKind.ushort:
-      case WasmTypeKind.int:
-      case WasmTypeKind.uint:
-      case WasmTypeKind.bool:
-        return "i";
-
-      case WasmTypeKind.long:
-      case WasmTypeKind.ulong:
-        return "I";
-
-      case WasmTypeKind.float:
-        return "f";
-
-      case WasmTypeKind.double:
-        return "F";
-
-      case WasmTypeKind.uintptr:
-        return uintptrType.size == 4 ? "i" : "I";
-
-      case WasmTypeKind.void:
-        return "v";
-
-    }
-    throw Error("unexpected type");
-  }
-
-  toBinaryenType(uintptrType: WasmType): any {
-    switch (this.kind) {
-
-      case WasmTypeKind.byte:
-      case WasmTypeKind.short:
-      case WasmTypeKind.ushort:
-      case WasmTypeKind.int:
-      case WasmTypeKind.uint:
-      case WasmTypeKind.bool:
-        return binaryen.i32;
-
-      case WasmTypeKind.long:
-      case WasmTypeKind.ulong:
-        return binaryen.i64;
-
-      case WasmTypeKind.float:
-        return binaryen.f32;
-
-      case WasmTypeKind.double:
-        return binaryen.f64;
-
-      case WasmTypeKind.uintptr:
-        return uintptrType.size == 4 ? binaryen.i32 : binaryen.i64;
-
-      case WasmTypeKind.void:
-        return binaryen.none;
-
-    }
-    throw Error("unexpected type");
-  }
-}
-
-export const byteType   = new WasmType(WasmTypeKind.byte   , 1);
-export const sbyteType  = new WasmType(WasmTypeKind.sbyte  , 1);
-export const shortType  = new WasmType(WasmTypeKind.short  , 2);
-export const ushortType = new WasmType(WasmTypeKind.ushort , 2);
-export const intType    = new WasmType(WasmTypeKind.int    , 4);
-export const uintType   = new WasmType(WasmTypeKind.uint   , 4);
-export const longType   = new WasmType(WasmTypeKind.long   , 8);
-export const ulongType  = new WasmType(WasmTypeKind.ulong  , 8);
-export const boolType   = new WasmType(WasmTypeKind.bool   , 4);
-export const floatType  = new WasmType(WasmTypeKind.float  , 4);
-export const doubleType = new WasmType(WasmTypeKind.double , 8);
-export const voidType   = new WasmType(WasmTypeKind.void   , 0);
-
-enum WasmFunctionFlags {
-  none   = 0,
-  import = 1 << 0,
-  export = 1 << 1
-}
-
-interface WasmFunction {
-  name: string,
-  parameters: WasmType[],
-  returnType: WasmType,
-  flags: WasmFunctionFlags,
-  signature: binaryen.Signature
-}
-
-interface WasmVariable {
-  index: number,
-  type: WasmType
-}
-
-interface WasmConstant {
-  type: WasmType,
-  value: any
-}
+const byteType      = new WasmType(WasmTypeKind.byte   , 1);
+const sbyteType     = new WasmType(WasmTypeKind.sbyte  , 1);
+const shortType     = new WasmType(WasmTypeKind.short  , 2);
+const ushortType    = new WasmType(WasmTypeKind.ushort , 2);
+const intType       = new WasmType(WasmTypeKind.int    , 4);
+const uintType      = new WasmType(WasmTypeKind.uint   , 4);
+const longType      = new WasmType(WasmTypeKind.long   , 8);
+const ulongType     = new WasmType(WasmTypeKind.ulong  , 8);
+const boolType      = new WasmType(WasmTypeKind.bool   , 4);
+const floatType     = new WasmType(WasmTypeKind.float  , 4);
+const doubleType    = new WasmType(WasmTypeKind.double , 8);
+const voidType      = new WasmType(WasmTypeKind.void   , 0);
+const uintptrType32 = new WasmType(WasmTypeKind.uintptr, 4);
+const uintptrType64 = new WasmType(WasmTypeKind.uintptr, 8);
 
 function isExport(node: ts.Node): boolean {
   return (node.modifierFlagsCache & ts.ModifierFlags.Export) !== 0;
@@ -199,7 +48,7 @@ export class Compiler {
   module: binaryen.Module;
   signatures: { [key: string]: binaryen.Signature } = {};
   constants: { [key: string]: WasmConstant } = {};
-  profileTimes: { [key: string]: [number, number] } = {};
+  profiler = new Profiler();
 
   static compile(filename: string): binaryen.Module {
     let program = ts.createProgram([ __dirname + "/../types/assembly.d.ts", filename ], {
@@ -219,9 +68,9 @@ export class Compiler {
         return null;
     }
 
-    compiler.startProfile("initialize");
+    compiler.profiler.start("initialize");
     compiler.initialize();
-    process.stderr.write("initialization took " + compiler.endProfile("initialize").toFixed(3) + " ms\n");
+    process.stderr.write("initialization took " + compiler.profiler.end("initialize").toFixed(3) + " ms\n");
 
     // bail out if there were initialization errors
     let diagnostics = compiler.diagnostics.getDiagnostics();
@@ -230,9 +79,9 @@ export class Compiler {
         return null;
     }
 
-    compiler.startProfile("compile");
+    compiler.profiler.start("compile");
     compiler.compile();
-    process.stderr.write("compilation took " + compiler.endProfile("compile").toFixed(3) + " ms\n");
+    process.stderr.write("compilation took " + compiler.profiler.end("compile").toFixed(3) + " ms\n");
 
     // bail out if there were compilation errors
     diagnostics = compiler.diagnostics.getDiagnostics();
@@ -252,19 +101,7 @@ export class Compiler {
     this.checker = program.getDiagnosticsProducingTypeChecker();
     this.diagnostics = ts.createDiagnosticCollection();
     this.module = new binaryen.Module();
-    this.uintptrType = new WasmType(WasmTypeKind.uintptr, uintptrSize);
-  }
-
-  startProfile(name: string): void {
-    this.profileTimes[name] = process.hrtime();
-  }
-
-  endProfile(name: string): number {
-    const start = this.profileTimes[name];
-    if (!start)
-      return 0;
-    const time = process.hrtime(start);
-    return time[0] + time[1] * (1 / 1000000);
+    this.uintptrType = uintptrSize === 4 ? uintptrType32 : uintptrType64;
   }
 
   createDiagnosticForNode(node: ts.Node, category: ts.DiagnosticCategory, message: string, arg1?: string) {
@@ -758,7 +595,7 @@ function convertValueIfNecessary(compiler: Compiler, expr: binaryen.Expression, 
   }
 }
 
-function compileExpression(compiler: Compiler, locals: { [key: string]: WasmVariable }, node: ts.Expression, type: WasmType): binaryen.Expression {
+function compileExpression(compiler: Compiler, locals: { [key: string]: WasmVariable }, node: ts.Expression, type?: WasmType): binaryen.Expression {
   switch (node.kind) {
 
     case ts.SyntaxKind.ParenthesizedExpression:
@@ -1013,7 +850,3 @@ function compileExpression(compiler: Compiler, locals: { [key: string]: WasmVari
       throw Error("unsupported expression node: " + ts.SyntaxKind[node.kind]);
   }
 }
-
-// TOOD: remove this
-if (process.argv.length > 2)
-  console.log("\n" + Compiler.compile(process.argv[2]).emitText());
