@@ -66,3 +66,21 @@ interface Number { }
 interface Object { }
 interface RegExp { }
 interface String { }
+
+// Builtins
+declare function abs(value: double): double;
+declare function absf(value: float): float;
+declare function ceil(value: double): double;
+declare function ceilf(value: float): float;
+declare function floor(value: double): double;
+declare function floorf(value: float): float;
+declare function sqrt(value: double): double;
+declare function sqrtf(value: float): float;
+declare function trunc(value: double): double;
+declare function truncf(value: float): float;
+declare function nearest(value: double): double;
+declare function nearestf(value: float): float;
+declare function min(left: double, right: double): double;
+declare function minf(left: float, right: float): float;
+declare function max(left: double, right: double): double;
+declare function maxf(left: float, right: float): float;
