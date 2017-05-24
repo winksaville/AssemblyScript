@@ -42,6 +42,9 @@ export class WasmType {
     if (this.isByte || this.isShort) {
       this.mask32 = (size << 8) - 1;
       this.shift32 = 32 - (size << 3);
+    } else if (this.kind == WasmTypeKind.bool) {
+      this.mask32 = 1;
+      this.shift32 = 31;
     }
   }
 

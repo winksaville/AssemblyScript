@@ -625,7 +625,7 @@ export class Compiler {
 
           }
 
-        } else { // some i32 type
+        } else { // some i32 type including bool
 
           (<any>expr).wasmType = intType;
 
