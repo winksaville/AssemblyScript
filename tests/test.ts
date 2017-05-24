@@ -7,6 +7,6 @@ export function add(a: int, b: float): float {
 function start(): void {
 }
 
-function bin(): int {
-  return ~1;
+function bin(v: double): int {
+  return minf(v, 1.2) as int;
 }

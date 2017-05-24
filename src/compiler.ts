@@ -1,7 +1,9 @@
 import * as ts from "byots";
 import * as Long from "long";
 import * as assert from "assert";
+
 import { Profiler } from "./profiler";
+import * as builtins from "./builtins";
 
 import {
   formatDiagnostics,
@@ -469,6 +471,9 @@ export class Compiler {
 
       case ts.SyntaxKind.BreakStatement:
         return op.break("break$" + this.currentBlockIndex);
+
+      case ts.SyntaxKind.ExpressionStatement:
+        return this.compileExpression((<ts.ExpressionStatement>node).expression, voidType);
 
       case ts.SyntaxKind.ReturnStatement:
       {
@@ -1009,6 +1014,82 @@ export class Compiler {
           (<any>node).wasmType = intType;
           return op.i32.const(0);
         }
+
+      case ts.SyntaxKind.CallExpression:
+      {
+        const callNode = <ts.CallExpression>node;
+        const signature = this.checker.getResolvedSignature(callNode);
+        const declaration = signature.declaration;
+        const argumentExpressions: WasmExpression[] = [];
+
+        (<any>node).wasmType = this.resolveType(declaration.type);
+
+        if (callNode.arguments.length !== declaration.parameters.length) {
+
+          this.error(callNode, "Invalid number of arguemnts", "Expected " + declaration.parameters.length + " but saw " + callNode.arguments.length);
+          return op.unreachable();
+
+        } else {
+
+          for (let i = 0, k = callNode.arguments.length, argument, parameter, argumentType, parameterType; i < k; ++i) {
+            parameterType = this.resolveType((parameter = declaration.parameters[i]).type);
+            argumentExpressions[i] = this.compileExpression(argument = callNode.arguments[i], parameterType);
+
+            if ((argumentType = (<any>argument).wasmType) !== parameterType) {
+              this.error(callNode.arguments[i], "Invalid argument type", "Expected '" + parameterType.toString() + "' but saw '" + argumentType.toString() + "'");
+              return op.unreachable();
+            }
+          }
+        }
+
+        if ((<any>declaration).body) { // user function
+
+          // TODO
+
+        } else { // import or builtin
+
+          // TODO
+
+          switch (declaration.symbol.name) {
+
+            case "abs":
+            case "absf":
+              return builtins.abs(this, callNode.arguments[0], argumentExpressions[0]);
+
+            case "ceil":
+            case "ceilf":
+              return builtins.ceil(this, callNode.arguments[0], argumentExpressions[0]);
+
+            case "floor":
+            case "floorf":
+              return builtins.floor(this, callNode.arguments[0], argumentExpressions[0]);
+
+            case "sqrt":
+            case "sqrtf":
+              return builtins.sqrt(this, callNode.arguments[0], argumentExpressions[0]);
+
+            case "trunc":
+            case "truncf":
+              return builtins.trunc(this, callNode.arguments[0], argumentExpressions[0]);
+
+            case "nearest":
+            case "nearestf":
+              return builtins.nearest(this, callNode.arguments[0], argumentExpressions[0]);
+
+            case "min":
+            case "minf":
+              return builtins.min(this, [ callNode.arguments[0], callNode.arguments[1] ], [ argumentExpressions[0], argumentExpressions[1] ]);
+
+            case "max":
+            case "maxf":
+              return builtins.max(this, [ callNode.arguments[0], callNode.arguments[1] ], [ argumentExpressions[0], argumentExpressions[1] ]);
+
+          }
+        }
+
+        this.error(callNode, "Unimplemented function");
+        return op.unreachable();
+      }
 
       default:
         this.error(node, "Unsupported expression node", ts.SyntaxKind[node.kind]);
