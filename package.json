@@ -17,6 +17,6 @@
     "typescript": "^2.4.0-dev.20170523"
   },
   "scripts": {
-    "test": "node bin/asc --text tests/test.ts"
+    "test": "node bin/asc --validate --text tests/test.ts"
   }
 }

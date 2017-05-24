@@ -46,8 +46,8 @@ function isExport(node: ts.Node): boolean {
 
 function isImport(node: ts.Node): boolean {
   if (node.modifiers) // TODO: isn't there a flag for that?
-    for (let modifier of node.modifiers)
-      if (modifier.kind === ts.SyntaxKind.DeclareKeyword)
+    for (let i = 0, k = node.modifiers.length; i < k; ++i)
+      if (node.modifiers[i].kind === ts.SyntaxKind.DeclareKeyword)
         return true;
   return false;
 }
@@ -77,9 +77,10 @@ export class Compiler {
     let compiler = new Compiler(program);
 
     // bail out if there were 'pre emit' errors
-    for (let diagnostic of ts.getPreEmitDiagnostics(compiler.program)) {
-      printDiagnostic(diagnostic);
-      if (diagnostic.category === ts.DiagnosticCategory.Error)
+    let diagnostics = ts.getPreEmitDiagnostics(compiler.program);
+    for (let i = 0, k = diagnostics.length; i < k; ++i) {
+      printDiagnostic(diagnostics[i]);
+      if (diagnostics[i].category === ts.DiagnosticCategory.Error)
         return null;
     }
 
@@ -88,9 +89,9 @@ export class Compiler {
     process.stderr.write("initialization took " + compiler.profiler.end("initialize").toFixed(3) + " ms\n");
 
     // bail out if there were initialization errors
-    let diagnostics = compiler.diagnostics.getDiagnostics();
-    for (let diagnostic of diagnostics) {
-      if (diagnostic.category === ts.DiagnosticCategory.Error)
+    diagnostics = compiler.diagnostics.getDiagnostics();
+    for (let i = 0, k = diagnostics.length; i < k; ++i) {
+      if (diagnostics[i].category === ts.DiagnosticCategory.Error)
         return null;
     }
 
@@ -100,8 +101,8 @@ export class Compiler {
 
     // bail out if there were compilation errors
     diagnostics = compiler.diagnostics.getDiagnostics();
-    for (let diagnostic of diagnostics) {
-      if (diagnostic.category === ts.DiagnosticCategory.Error)
+    for (let i = 0, k = diagnostics.length; i < k; ++i) {
+      if (diagnostics[i].category === ts.DiagnosticCategory.Error)
         return null;
     }
 
@@ -143,32 +144,39 @@ export class Compiler {
     const compiler = this;
 
     this.module.setMemory(256, MEM_MAX_32, "memory", []);
-
     // TODO: it seem that binaryen.js doesn't support importing memory yet
 
-    for (let file of this.program.getSourceFiles()) {
-      if (file.isDeclarationFile) continue;
-      ts.forEachChild(file, visit);
-    }
+    const sourceFiles = this.program.getSourceFiles();
+    for (let i = 0, k = sourceFiles.length, file; i < k; ++i) {
 
-    function visit(node: ts.Node) {
-      switch (node.kind) {
-        case ts.SyntaxKind.VariableStatement:
-          compiler.initializeVariable(<ts.VariableStatement>node);
-          break;
-        case ts.SyntaxKind.FunctionDeclaration:
-          compiler.initializeFunction(<ts.FunctionDeclaration>node);
-          break;
-        case ts.SyntaxKind.ClassDeclaration:
-          compiler.initializeClass(<ts.ClassDeclaration>node);
-          break;
-        case ts.SyntaxKind.EnumDeclaration:
-          compiler.initializeEnum(<ts.EnumDeclaration>node);
-          break;
-        case ts.SyntaxKind.EndOfFileToken:
-          break;
-        default:
-          throw Error("unsupported top-level node: " + ts.SyntaxKind[node.kind]);
+      if ((file = sourceFiles[i]).isDeclarationFile)
+        continue;
+
+      for (let i = 0, k = file.statements.length, statement; i < k; ++i) {
+        switch ((statement = file.statements[i]).kind) {
+
+          case ts.SyntaxKind.VariableStatement:
+            compiler.initializeVariable(<ts.VariableStatement>statement);
+            break;
+
+          case ts.SyntaxKind.FunctionDeclaration:
+            compiler.initializeFunction(<ts.FunctionDeclaration>statement);
+            break;
+
+          case ts.SyntaxKind.ClassDeclaration:
+            compiler.initializeClass(<ts.ClassDeclaration>statement);
+            break;
+
+          case ts.SyntaxKind.EnumDeclaration:
+            compiler.initializeEnum(<ts.EnumDeclaration>statement);
+            break;
+
+          case ts.SyntaxKind.EndOfFileToken:
+            break;
+
+          default:
+            throw Error("unsupported top-level node: " + ts.SyntaxKind[statement.kind]);
+        }
       }
     }
   }
@@ -183,27 +191,37 @@ export class Compiler {
     if (node.typeParameters && node.typeParameters.length !== 0)
       this.error(node.typeParameters[0], "Type parameters are not supported yet");
 
-    var parameters: WasmType[] = [];
-    var signatureIdentifiers: string[] = [];
-    var signatureTypes: number[] = [];
+    let parameters: WasmType[];
+    let signatureIdentifiers: string[]; // including return type
+    let signatureTypes: number[]; // excluding return type
+    let index = 0;
 
     if (parent && isInstance) {
+      parameters = new Array(node.parameters.length + 1);
+      signatureIdentifiers = new Array(parameters.length + 1);
+      signatureTypes = new Array(parameters.length);
+
       const thisType = this.uintptrType; // TODO: underlyingType
-      parameters.push(thisType);
-      signatureIdentifiers.push(thisType.toSignatureIdentifier(this.uintptrType));
-      signatureTypes.push(thisType.toBinaryenType(this.uintptrType));
+      parameters[0] = thisType;
+      signatureIdentifiers[0] = thisType.toSignatureIdentifier(this.uintptrType);
+      signatureTypes[0] = thisType.toBinaryenType(this.uintptrType);
+
+      index = 1;
+    } else {
+      parameters = new Array(node.parameters.length);
+      signatureIdentifiers = new Array(parameters.length + 1);
+      signatureTypes = new Array(parameters.length);
     }
 
-    node.parameters.forEach(parameter => {
-      const name = parameter.symbol.name;
-      const type = this.resolveType(parameter.type);
-      parameters.push(type);
-      signatureIdentifiers.push(type.toSignatureIdentifier(this.uintptrType));
-      signatureTypes.push(type.toBinaryenType(this.uintptrType));
-    });
+    for (let i = 0, k = node.parameters.length; i < k; ++i) {
+      const type = this.resolveType(node.parameters[i].type);
+      parameters[index] = type;
+      signatureIdentifiers[index] = type.toSignatureIdentifier(this.uintptrType);
+      signatureTypes[index++] = type.toBinaryenType(this.uintptrType);
+    }
 
     const returnType = this.resolveType(node.type, true);
-    signatureIdentifiers.push(returnType.toSignatureIdentifier(this.uintptrType));
+    signatureIdentifiers[index] = returnType.toSignatureIdentifier(this.uintptrType);
 
     const signatureKey = signatureIdentifiers.join("");
     let signature = this.signatures[signatureKey];
@@ -231,90 +249,67 @@ export class Compiler {
   }
 
   initializeClass(node: ts.ClassDeclaration): void {
-    const compiler = this;
-    const clazz = node;
     const name = node.symbol.name;
 
-    ts.forEachChild(node, visit);
-
-    function visit(node: ts.Node): void {
-      switch (node.kind) {
+    for (let i = 0, k = node.members.length, member; i < k; ++i) {
+      switch ((member = node.members[i]).kind) {
 
         case ts.SyntaxKind.Identifier:
           break;
 
         case ts.SyntaxKind.MethodDeclaration:
           if (isExport(node))
-            compiler.error(node, "Class methods cannot be exports");
+            this.error(node, "Class methods cannot be exports");
           if (isImport(node))
-            compiler.error(node, "Class methods cannot be imports");
-          compiler._initializeFunction(<ts.MethodDeclaration>node, clazz, (node.modifierFlagsCache & ts.ModifierFlags.Static) === 0);
+            this.error(node, "Class methods cannot be imports");
+          this._initializeFunction(<ts.MethodDeclaration>member, node, (node.modifierFlagsCache & ts.ModifierFlags.Static) === 0);
           break;
 
         default:
-          compiler.error(node, "Unsupported class member", ts.SyntaxKind[node.kind]);
+          this.error(node, "Unsupported class member", ts.SyntaxKind[node.kind]);
 
       }
     }
   }
 
   initializeEnum(node: ts.EnumDeclaration): void {
-    const compiler = this;
     const name = node.symbol.name;
 
-    ts.forEachChild(node, visit);
-
-    function visit(node: ts.Node): void {
-      switch (node.kind) {
-
-        case ts.SyntaxKind.Identifier:
-          break;
-
-        case ts.SyntaxKind.EnumMember:
-        {
-          var member = <ts.EnumMember>node;
-          compiler.constants[name + "$" + member.symbol.name] = {
-            type: intType,
-            value: compiler.checker.getConstantValue(member)
-          };
-          break;
-        }
-
-        default:
-          compiler.error(node, "Unsupported enum member", ts.SyntaxKind[node.kind]);
-
-      }
+    for (let i = 0, k = node.members.length, member; i < k; ++i) {
+      this.constants[name + "$" + node.members[i].symbol.name] = {
+        type: intType,
+        value: this.checker.getConstantValue(member)
+      };
     }
   }
 
   compile(): void {
-    const compiler = this;
-
     this.module.autoDrop();
 
-    for (let file of this.program.getSourceFiles()) {
-      if (file.isDeclarationFile) continue;
-      ts.forEachChild(file, visit);
-    }
+    const sourceFiles = this.program.getSourceFiles();
+    for (let i = 0, k = sourceFiles.length; i < k; ++i) {
 
-    function visit(node: ts.Node) {
-      switch (node.kind) {
+      if (sourceFiles[i].isDeclarationFile)
+        continue;
 
-        case ts.SyntaxKind.VariableStatement:
-          compiler.compileVariable(<ts.VariableStatement>node);
-          break;
+      const statements = sourceFiles[i].statements;
+      for (let j = 0, l = statements.length, statement; j < l; ++j) {
+        switch ((statement = statements[j]).kind) {
 
-        case ts.SyntaxKind.FunctionDeclaration:
-          compiler.compileFunction(<ts.FunctionDeclaration>node);
-          break;
+          case ts.SyntaxKind.VariableStatement:
+            this.compileVariable(<ts.VariableStatement>statement);
+            break;
 
-        case ts.SyntaxKind.ClassDeclaration:
-          compiler.compileClass(<ts.ClassDeclaration>node);
-          break;
+          case ts.SyntaxKind.FunctionDeclaration:
+            this.compileFunction(<ts.FunctionDeclaration>statement);
+            break;
 
-        // default:
-        // already reported by initialize
+          case ts.SyntaxKind.ClassDeclaration:
+            this.compileClass(<ts.ClassDeclaration>statement);
+            break;
 
+          // otherwise already reported by initialize
+        }
       }
     }
   }
@@ -326,30 +321,25 @@ export class Compiler {
   private _compileFunction(node: ts.FunctionDeclaration | ts.MethodDeclaration) {
     const wasmFunction: WasmFunction = (<any>node).wasmFunction;
     const compiler = this;
-    const body = [];
     const locals: { [key: string]: WasmVariable } = {};
-
     const op = this.module;
 
-    node.parameters.forEach((parameter, i) => {
-      locals[parameter.symbol.name] = {
+    for (let i = 0, k = node.parameters.length; i < k; ++i) {
+      locals[node.parameters[i].symbol.name] = {
         index: i,
         type: wasmFunction.parameters[i]
-      }
-    });
+      };
+    }
 
     this.currentFunction = wasmFunction;
     this.currentLocals = locals;
     this.currentBlockIndex = -1;
 
-    ts.forEachChild(node.body, visit);
+    const body: WasmStatement[] = new Array(node.body.statements.length);
+    let index = 0;
 
-    function visit(node: ts.Statement) {
-      body.push(compiler.compileStatement(node));
-    }
-
-    if (!body.length)
-      body.push(this.module.return());
+    for (let i = 0, k = node.body.statements.length; i < k; ++i)
+      body[i] = compiler.compileStatement(node.body.statements[i]);
 
     return this.module.addFunction(wasmFunction.name, wasmFunction.signature, [], op.block("", body));
   }
@@ -387,13 +377,11 @@ export class Compiler {
     const clazz = node;
     const name = node.symbol.name;
 
-    ts.forEachChild(node, visit);
-
-    function visit(node: ts.Node) {
-      switch (node.kind) {
+    for (let i = 0, k = node.members.length, member; i < k; ++i) {
+      switch ((member = node.members[i]).kind) {
 
         case ts.SyntaxKind.MethodDeclaration:
-          compiler._compileFunction(<ts.MethodDeclaration>node);
+          compiler._compileFunction(<ts.MethodDeclaration>member);
           break;
 
         // default:
@@ -468,8 +456,12 @@ export class Compiler {
           return op.nop();
         else if (stmt.statements.length === 1)
           return this.compileStatement(stmt.statements[0]);
-        else
-          return op.block("", stmt.statements.map(stmt => this.compileStatement(stmt)));
+        else {
+          const children: WasmStatement[] = new Array(stmt.statements.length);
+          for (let i = 0, k = children.length; i < k; ++i)
+            children[i] = this.compileStatement(stmt.statements[i]);
+          return op.block("", children);
+        }
       }
 
       case ts.SyntaxKind.ContinueStatement:
