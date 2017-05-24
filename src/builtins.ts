@@ -1,5 +1,12 @@
+import { Compiler } from "./compiler";
+
 import {
-  Compiler,
+  WasmModule,
+  WasmExpression,
+  WasmType
+} from "./wasm";
+
+import {
   byteType,
   sbyteType,
   shortType,
@@ -13,13 +20,7 @@ import {
   boolType,
   floatType,
   doubleType
-} from "./compiler";
-
-import {
-  WasmModule,
-  WasmExpression,
-  WasmType
-} from "./wasm";
+} from "./types";
 
 export function abs(compiler: Compiler, node: ts.Expression, expr: WasmExpression): WasmExpression {
   switch ((<any>node).wasmType) {

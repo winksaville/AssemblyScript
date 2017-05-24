@@ -25,20 +25,22 @@ import {
   WasmConstant
 } from "./wasm";
 
-export const byteType      = new WasmType(WasmTypeKind.byte   , 1);
-export const sbyteType     = new WasmType(WasmTypeKind.sbyte  , 1);
-export const shortType     = new WasmType(WasmTypeKind.short  , 2);
-export const ushortType    = new WasmType(WasmTypeKind.ushort , 2);
-export const intType       = new WasmType(WasmTypeKind.int    , 4);
-export const uintType      = new WasmType(WasmTypeKind.uint   , 4);
-export const longType      = new WasmType(WasmTypeKind.long   , 8);
-export const ulongType     = new WasmType(WasmTypeKind.ulong  , 8);
-export const boolType      = new WasmType(WasmTypeKind.bool   , 4);
-export const floatType     = new WasmType(WasmTypeKind.float  , 4);
-export const doubleType    = new WasmType(WasmTypeKind.double , 8);
-export const voidType      = new WasmType(WasmTypeKind.void   , 0);
-export const uintptrType32 = new WasmType(WasmTypeKind.uintptr, 4);
-export const uintptrType64 = new WasmType(WasmTypeKind.uintptr, 8);
+import {
+  byteType,
+  sbyteType,
+  shortType,
+  ushortType,
+  intType,
+  uintType,
+  longType,
+  ulongType,
+  boolType,
+  floatType,
+  doubleType,
+  uintptrType32,
+  uintptrType64,
+  voidType
+} from "./types";
 
 const MEM_MAX_32 = (1 << 16) - 1; // 65535 (pageSize) * 65535 (n) ^= 4GB
 
@@ -1286,6 +1288,7 @@ export class Compiler {
 
     switch (text) {
       case "byte": return byteType;
+      case "sbyte": return sbyteType;
       case "short": return shortType;
       case "ushort": return ushortType;
       case "int": return intType;
@@ -1295,8 +1298,8 @@ export class Compiler {
       case "bool": return boolType;
       case "float": return floatType;
       case "double": return doubleType;
-      case "void": if (acceptVoid) return voidType;
       case "uintptr": return this.uintptrType;
+      case "void": if (acceptVoid) return voidType;
     }
 
     if (type.kind == ts.SyntaxKind.TypeReference) {
