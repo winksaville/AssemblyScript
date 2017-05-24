@@ -1,5 +1,6 @@
 import * as ts from "byots";
 import * as Long from "long";
+import * as assert from "assert";
 import { Profiler } from "./profiler";
 
 import {
@@ -160,24 +161,20 @@ export class Compiler {
         case ts.SyntaxKind.EndOfFileToken:
           break;
         default:
-          compiler.error(node, "unsupported top-level node", ts.SyntaxKind[node.kind]);
+          throw Error("unsupported top-level node: " + ts.SyntaxKind[node.kind]);
       }
     }
   }
 
   initializeVariable(node: ts.VariableStatement): void {
     // TODO: it seems that binaryen.js does not support globals, yet
-
-    if ((node.flags & ts.NodeFlags.Const) == 0)
-      this.error(node, "global variables must be constant");
-    // otherwise create in memory
   }
 
   private _initializeFunction(node: ts.FunctionDeclaration | ts.MethodDeclaration, parent?: ts.ClassDeclaration, isInstance: boolean = false): void {
     const name = node.symbol.name;
 
     if (node.typeParameters && node.typeParameters.length !== 0)
-      this.error(node.typeParameters[0], "type parameters are not supported yet");
+      this.error(node.typeParameters[0], "Type parameters are not supported yet");
 
     var parameters: WasmType[] = [];
     var signatureIdentifiers: string[] = [];
@@ -241,14 +238,14 @@ export class Compiler {
 
         case ts.SyntaxKind.MethodDeclaration:
           if (isExport(node))
-            compiler.error(node, "class methods cannot be exports");
+            compiler.error(node, "Class methods cannot be exports");
           if (isImport(node))
-            compiler.error(node, "class methods cannot be imports");
+            compiler.error(node, "Class methods cannot be imports");
           compiler._initializeFunction(<ts.MethodDeclaration>node, clazz, (node.modifierFlagsCache & ts.ModifierFlags.Static) === 0);
           break;
 
         default:
-          throw Error("unsupported class member kind: " + ts.SyntaxKind[node.kind]);
+          compiler.error(node, "Unsupported class member", ts.SyntaxKind[node.kind]);
 
       }
     }
@@ -277,7 +274,7 @@ export class Compiler {
         }
 
         default:
-          throw compiler.error(node, "unsupported enum node kind", ts.SyntaxKind[node.kind]);
+          compiler.error(node, "Unsupported enum member", ts.SyntaxKind[node.kind]);
 
       }
     }
@@ -346,11 +343,11 @@ export class Compiler {
           const stmt = <ts.ReturnStatement>node;
           if (wasmFunction.returnType === voidType) {
             if (stmt.getChildCount() > 1) // return keyword
-              compiler.error(stmt, "void function cannot return a value", wasmFunction.name);
+              compiler.error(stmt, "A function without a return type cannot return a value", wasmFunction.name);
             body.push(op.return());
           } else {
             if (stmt.getChildCount() < 2) // return keyword + expression
-              compiler.error(stmt, "function must return a value", wasmFunction.name);
+              compiler.error(stmt, "A function with a return type must return a value", wasmFunction.name);
             const expr = <ts.Expression>stmt.getChildAt(1);
             body.push(
               op.return(
@@ -368,7 +365,7 @@ export class Compiler {
         }
 
         default:
-          throw Error("unsupported function body node: " + ts.SyntaxKind[node.kind]);
+          compiler.error(node, "Unsupported function body node", ts.SyntaxKind[node.kind]);
       }
     }
 
@@ -610,7 +607,7 @@ export class Compiler {
           }
         }
 
-        throw Error("unsupported operator token: " + ts.SyntaxKind[expr.operatorToken.kind]);
+        this.error(expr.operatorToken, "Unsupported operator token", ts.SyntaxKind[expr.operatorToken.kind]);
       }
 
       case ts.SyntaxKind.FirstLiteralToken:
@@ -623,9 +620,15 @@ export class Compiler {
         } else if (/^0[xX][0-9A-Fa-f]+$/.test(text)) {
           radix = 16;
           text = text.substring(2);
+        } else if (/^(?![eE])[0-9]*(?:\.[0-9]*)?(?:[eE][+-]?[0-9]+)?$/.test(text)) {
+          if (!contextualType.isFloat) { // explicit float in non-float context must be converted
+            (<any>node).wasmType = doubleType;
+            return op.f64.const(parseFloat(text));
+          }
         } else {
-          this.error(node, "unsupported literal", text);
+          this.error(node, "Unsupported literal", text);
           text = "0";
+          radix = 10;
         }
 
         (<any>node).wasmType = contextualType;
@@ -664,8 +667,10 @@ export class Compiler {
         const ident = <ts.Identifier>node;
         const local = this.currentLocals[ident.text];
 
-        if (local == null)
-          throw Error("undefined local variable: " + ident.text);
+        if (local == null) {
+          this.error(node, "Undefined local variable", ident.text);
+          return op.unreachable();
+        }
 
         (<any>node).wasmType = local.type;
 
@@ -716,11 +721,11 @@ export class Compiler {
           }
         }
 
-        throw Error("unsupported property access");
+        this.error(node, "Unsupported property access");
       }
 
       default:
-        throw Error("unsupported expression node: " + ts.SyntaxKind[node.kind]);
+        this.error(node, "Unsupported expression node", ts.SyntaxKind[node.kind]);
     }
   }
 
@@ -732,7 +737,7 @@ export class Compiler {
     const op = this.module;
 
     function illegalImplicitConversion() {
-      compiler.error(node, "cannot convert '" + fromType + "' to '" + toType + "' without a cast");
+      compiler.error(node, "Cannot convert from '" + fromType + "' to '" + toType + "' without a cast");
       explicit = true; // report this only once for the topmost node
     }
 
@@ -869,14 +874,14 @@ export class Compiler {
 
       }
 
-    } else if (fromType.size <= 4 && toType.size === 8) { // int to long
+    } else if (fromType.isInt && toType.isLong) {
 
       if (toType.isSigned)
         return op.i64.extend_s(expr);
       else
         return op.i64.extend_u(expr);
 
-    } else if (fromType.size === 8 && toType.size <= 4) { // long to int
+    } else if (fromType.isLong && toType.isInt) {
 
       if (!explicit) illegalImplicitConversion();
 
@@ -932,13 +937,13 @@ export class Compiler {
       switch (reference.typeName.getText()) {
         case "Ptr":
           if (reference.typeArguments.length !== 1)
-            throw Error("unexpected number of type parameters on Ptr<T>");
+            throw Error("illegal number of type parameters on Ptr<T>");
           if (reference.typeArguments[0].kind !== ts.SyntaxKind.TypeReference)
-            throw Error("unexpected type parameter on Ptr<T>");
+            throw Error("unsupported type parameter on Ptr<T>");
           return this.uintptrType.withUnderlyingType(this.resolveType(<ts.TypeReferenceNode>reference.typeArguments[0]));
       }
     }
 
-    this.error(type, "unsupported type", text);
+    throw Error("unsupported type: " + text);
   }
 }

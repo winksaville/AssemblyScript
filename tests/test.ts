@@ -16,8 +16,8 @@ class MyClass {
   }
 }
 
-export function add(a: int, b: float): byte {
-  return (a + (b as int)) as byte;
+export function add(a: int, b: float): float {
+  return (a as float) + b + 1.5;
 }
 
 function start(): void {
