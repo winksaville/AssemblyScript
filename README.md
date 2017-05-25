@@ -1,8 +1,8 @@
 AssemblyScript
 ==============
-A subset of TypeScript that compiles to WebAssembly.
+A subset of [TypeScript](https://github.com/Microsoft/TypeScript) that compiles to [WebAssembly](http://webassembly.org/).
 
-Be warned that this is an early prototype and that it cannot do anything useful yet. Under the hood, it rewires [TypeScript](https://github.com/Microsoft/TypeScript)'s [compiler API](https://github.com/Microsoft/TypeScript-wiki/blob/master/Using-the-Compiler-API.md) to [binaryen](https://github.com/WebAssembly/binaryen)'s compiler infrastructure.
+Be warned that this is an early prototype and that it cannot do anything useful yet. Under the hood, it rewires TypeScript's [compiler API](https://github.com/Microsoft/TypeScript-wiki/blob/master/Using-the-Compiler-API.md) to [binaryen](https://github.com/WebAssembly/binaryen)'s compiler infrastructure.
 
 Example
 -------
@@ -98,9 +98,23 @@ Function                                   | OpCode
 
 Type coercion requires an explicit cast where precision is lost respectively is implicit where precision is maintained. For example, to cast a `double` to an `int`, one would write `(someIntValue as double)` which then translates to the respective opcode(s).
 
-Imports are `declare`d, exports `export`ed. There is exactly one entry file that is examined for global exports. Imports can be pulled from different namespaces by separating the namespace and the function with a `$` character, for example `declare function console$log(...): void`.
+Imports are `declare`d, exports `export`ed. There is exactly one entry file that is examined for global exports. Currently, imports can be pulled from different namespaces by separating the namespace and the function with a `$` character, for example `declare function console$log(...): void`.
 
+Command line
+------------
 The command line compiler is named `asc` following TypeScript's `tsc`.
+
+```
+Syntax: asc [options] [file ...]
+
+Options:
+ -o, --out, --outFile   Specifies the output file name.
+ -v, --validate         Validates the module.
+ -O, --optimize         Runs optimizing binaryen IR passes.
+ -t, --text             Emits text format instead of a binary.
+```
+
+---
 
 That's it for now. Feel free to experiment. PRs welcome!
 

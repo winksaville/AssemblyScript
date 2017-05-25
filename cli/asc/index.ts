@@ -20,14 +20,14 @@ const files = argv._;
 
 if (files.length !== 1) {
   process.stderr.write([
-    "Version " + (<any>pkg["version"]),
-    "Syntax: asc [options] [file ...]",
+    "Version " + (<any>pkg)["version"],
+    "Syntax: asc [options] [entryFile]",
     "",
     "Options:",
-    " -o, --out         Specifies the output file name.",
-    " -v, --validate    Validates the module.",
-    " -O, --optimize    Runs optimizing binaryen IR passes.",
-    " -t, --text        Emits text format instead of a binary.",
+    " -o, --out, --outFile   Specifies the output file name.",
+    " -v, --validate         Validates the module.",
+    " -O, --optimize         Runs optimizing binaryen IR passes.",
+    " -t, --text             Emits text format instead of a binary.",
     ""
   ].join("\n"));
   process.exit(1);

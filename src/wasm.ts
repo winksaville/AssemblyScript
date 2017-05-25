@@ -205,9 +205,10 @@ export class WasmType {
 }
 
 export enum WasmFunctionFlags {
-  none   = 0,
-  import = 1 << 0,
-  export = 1 << 1
+  none     = 0,
+  import   = 1 << 0,
+  export   = 1 << 1,
+  instance = 1 << 2
 }
 
 export interface WasmFunction {
