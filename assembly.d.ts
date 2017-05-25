@@ -68,6 +68,16 @@ interface RegExp { }
 interface String { }
 
 // Builtins
+declare function rotl(value: int, shift: int): int;
+declare function rotll(value: long, shift: long): long;
+declare function rotr(value: int, shift: int): int;
+declare function rotrl(value: long, shift: long): long;
+declare function clz(value: int): int;
+declare function clzl(value: long): long;
+declare function ctz(value: int): int;
+declare function ctzl(value: long): long;
+declare function popcnt(value: int): int;
+declare function popcntl(value: long): long;
 declare function abs(value: double): double;
 declare function absf(value: float): float;
 declare function ceil(value: double): double;

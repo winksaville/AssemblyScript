@@ -5,9 +5,102 @@ import {
 } from "./wasm";
 
 import {
+  intType,
+  uintType,
+  longType,
+  ulongType,
+  uintptrType32,
+  uintptrType64,
   floatType,
   doubleType
 } from "./types";
+
+type TSExpressionPair = [ ts.Expression, ts.Expression ];
+type WasmExpressionPair = [ WasmExpression, WasmExpression ];
+
+export function rotl(compiler: Compiler, node: TSExpressionPair, expr: WasmExpressionPair): WasmExpression {
+  if ((<any>node[0]).wasmType === (<any>node[1]).wasmType) {
+    switch ((<any>node).wasmType) {
+
+      case intType:
+      case uintType:
+      case uintptrType32:
+        return compiler.module.i32.rotl(expr[0], expr[1]);
+
+      case longType:
+      case ulongType:
+      case uintptrType64:
+        return compiler.module.i64.rotl(expr[0], expr[1]);
+    }
+  }
+  throw Error("unsupported operation");
+}
+
+export function rotr(compiler: Compiler, node: TSExpressionPair, expr: WasmExpressionPair): WasmExpression {
+  if ((<any>node[0]).wasmType === (<any>node[1]).wasmType) {
+    switch ((<any>node).wasmType) {
+
+      case intType:
+      case uintType:
+      case uintptrType32:
+        return compiler.module.i32.rotr(expr[0], expr[1]);
+
+      case longType:
+      case ulongType:
+      case uintptrType64:
+        return compiler.module.i64.rotr(expr[0], expr[1]);
+    }
+  }
+  throw Error("unsupported operation");
+}
+
+export function clz(compiler: Compiler, node: ts.Expression, expr: WasmExpression): WasmExpression {
+  switch ((<any>node).wasmType) {
+
+    case intType:
+    case uintType:
+    case uintptrType32:
+      return compiler.module.i32.clz(expr);
+
+    case longType:
+    case ulongType:
+    case uintptrType64:
+      return compiler.module.i64.clz(expr);
+  }
+  throw Error("unsupported operation");
+}
+
+export function ctz(compiler: Compiler, node: ts.Expression, expr: WasmExpression): WasmExpression {
+  switch ((<any>node).wasmType) {
+
+    case intType:
+    case uintType:
+    case uintptrType32:
+      return compiler.module.i32.ctz(expr);
+
+    case longType:
+    case ulongType:
+    case uintptrType64:
+      return compiler.module.i64.ctz(expr);
+  }
+  throw Error("unsupported operation");
+}
+
+export function popcnt(compiler: Compiler, node: ts.Expression, expr: WasmExpression): WasmExpression {
+  switch ((<any>node).wasmType) {
+
+    case intType:
+    case uintType:
+    case uintptrType32:
+      return compiler.module.i32.popcnt(expr);
+
+    case longType:
+    case ulongType:
+    case uintptrType64:
+      return compiler.module.i64.popcnt(expr);
+  }
+  throw Error("unsupported operation");
+}
 
 export function abs(compiler: Compiler, node: ts.Expression, expr: WasmExpression): WasmExpression {
   switch ((<any>node).wasmType) {
@@ -81,10 +174,7 @@ export function nearest(compiler: Compiler, node: ts.Expression, expr: WasmExpre
   throw Error("unsupported operation");
 }
 
-type TypeScriptNodePair = [ ts.Node, ts.Node ];
-type WasmExpressionPair = [ WasmExpression, WasmExpression ];
-
-export function min(compiler: Compiler, node: TypeScriptNodePair, expr: WasmExpressionPair): WasmExpression {
+export function min(compiler: Compiler, node: TSExpressionPair, expr: WasmExpressionPair): WasmExpression {
   if ((<any>node[0]).wasmType === (<any>node[1]).wasmType) {
     switch ((<any>node[0]).wasmType) {
 
@@ -98,7 +188,7 @@ export function min(compiler: Compiler, node: TypeScriptNodePair, expr: WasmExpr
   throw Error("unsupported operation");
 }
 
-export function max(compiler: Compiler, node: TypeScriptNodePair, expr: WasmExpressionPair): WasmExpression {
+export function max(compiler: Compiler, node: TSExpressionPair, expr: WasmExpressionPair): WasmExpression {
   if ((<any>node[0]).wasmType === (<any>node[1]).wasmType) {
     switch ((<any>node[0]).wasmType) {
 

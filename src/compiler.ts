@@ -1046,6 +1046,26 @@ export class Compiler {
 
           switch (declaration.symbol.name) {
 
+            case "rotl":
+            case "rotll":
+              return builtins.rotl(this, [ callNode.arguments[0], callNode.arguments[1] ], [ argumentExpressions[0], argumentExpressions[1] ]);
+
+            case "rotr":
+            case "rotrl":
+              return builtins.rotr(this, [ callNode.arguments[0], callNode.arguments[1] ], [ argumentExpressions[0], argumentExpressions[1] ]);
+
+            case "clz":
+            case "clzl":
+              return builtins.clz(this, callNode.arguments[0], argumentExpressions[0]);
+
+            case "ctz":
+            case "ctzl":
+              return builtins.ctz(this, callNode.arguments[0], argumentExpressions[0]);
+
+            case "popcnt":
+            case "popcntl":
+              return builtins.popcnt(this, callNode.arguments[0], argumentExpressions[0]);
+
             case "abs":
             case "absf":
               return builtins.abs(this, callNode.arguments[0], argumentExpressions[0]);

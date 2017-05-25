@@ -69,6 +69,16 @@ WebAssembly-specific operations are available as built-in functions:
 
 Function                                   | OpCode
 -------------------------------------------|----------
+`rotl(value: int, shift: int): int`        | i32.rotl
+`rotll(value: long, shift: long): long`    | i64.rotl
+`rotr(value: int, shift: int): int`        | i32.rotr
+`rotrl(value: long, shift: long): long`    | i64.rotr
+`clz(value: int): int`                     | i32.clz
+`clzl(value: long): long`                  | i64.clz
+`ctz(value: int): int`                     | i32.ctz
+`ctzl(value: long): long`                  | i64.ctz
+`popcnt(value: int): int`                  | i32.popcnt
+`popcntl(value: long): long`               | i64.popcnt
 `abs(value: double): double`               | f64.abs
 `absf(value: float): float`                | f32.abs
 `ceil(value: double): double`              | f64.ceil
