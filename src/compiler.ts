@@ -1130,7 +1130,7 @@ export class Compiler {
         let i = 0;
 
         if ((func.flags & WasmFunctionFlags.instance) !== 0)
-          argumentExpressions[i++] = op.getLocal(0, func.parameterTypes[0]);
+          argumentExpressions[i++] = op.getLocal(0, func.parameterTypes[0].toBinaryenType(this.uintptrType));
 
         for (let k = argumentExpressions.length; i < k; ++i)
           argumentExpressions[i] = this.compileExpression(callNode.arguments[i], func.parameterTypes[i]);
