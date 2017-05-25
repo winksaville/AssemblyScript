@@ -93,3 +93,5 @@ Imports are `declare`d, exports `export`ed. There is exactly one entry file that
 The command line compiler is named `asc` following TypeScript's `tsc`.
 
 That's it for now. Feel free to experiment. PRs welcome!
+
+License: [Apache License, Version 2.0](https://opensource.org/licenses/Apache-2.0)

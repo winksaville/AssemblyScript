@@ -3,6 +3,7 @@
   "description": "A subset of TypeScript that compiles to WebAssembly.",
   "version": "0.0.1",
   "author": "Daniel Wirtz <dcode+assemblyscript@dcode.io>",
+  "license": "Apache-2.0",
   "bin": {
     "asc": "bin/asc"
   },
