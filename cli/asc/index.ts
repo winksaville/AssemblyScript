@@ -1,9 +1,9 @@
 /// <reference path="./require-json.d.ts" />
 
-import { Compiler } from "../src/compiler";
+import { Compiler } from "../../src/compiler";
 import * as fs from "fs";
 import * as minimist from "minimist";
-import * as pkg from "../package.json";
+import * as pkg from "../../package.json";
 
 const argv = minimist(process.argv.slice(2), {
   alias: {
@@ -20,7 +20,7 @@ const files = argv._;
 
 if (files.length !== 1) {
   process.stderr.write([
-    "Version " + pkg["version"],
+    "Version " + (<any>pkg["version"]),
     "Syntax: asc [options] [file ...]",
     "",
     "Options:",

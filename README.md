@@ -69,22 +69,22 @@ WebAssembly-specific operations are available as built-in functions:
 
 Function                                   | OpCode
 -------------------------------------------|----------
-`abs(value: double): double`               | f32.abs
-`absf(value: float): float`                | f64.abs
-`ceil(value: double): double`              | f32.ceil
-`ceilf(value: float): float`               | f64.ceil
-`floor(value: double): double`             | f32.floor
-`floorf(value: float): float`              | f64.floor
-`sqrt(value: double): double`              | f32.sqrt
-`sqrtf(value: float): float`               | f64.sqrt
-`trunc(value: double): double`             | f32.trunc
-`truncf(value: float): float`              | f64.trunc
-`nearest(value: double): double`           | f32.nearest
-`nearestf(value: float): float`            | f64.nearest
-`min(left: double, right: double): double` | f32.min
-`minf(left: float, right: float): float`   | f64.min
-`max(left: double, right: double): double` | f32.max
-`maxf(left: float, right: float): float`   | f64.max
+`abs(value: double): double`               | f64.abs
+`absf(value: float): float`                | f32.abs
+`ceil(value: double): double`              | f64.ceil
+`ceilf(value: float): float`               | f32.ceil
+`floor(value: double): double`             | f64.floor
+`floorf(value: float): float`              | f32.floor
+`sqrt(value: double): double`              | f64.sqrt
+`sqrtf(value: float): float`               | f32.sqrt
+`trunc(value: double): double`             | f64.trunc
+`truncf(value: float): float`              | f32.trunc
+`nearest(value: double): double`           | f64.nearest
+`nearestf(value: float): float`            | f32.nearest
+`min(left: double, right: double): double` | f64.min
+`minf(left: float, right: float): float`   | f32.min
+`max(left: double, right: double): double` | f64.max
+`maxf(left: float, right: float): float`   | f32.max
 
 Type coercion requires an explicit cast where precision is lost respectively is implicit where precision is maintained. For example, to cast a `double` to an `int`, one would write `(someIntValue as double)` which then translates to the respective opcode(s).
 

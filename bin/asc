@@ -3,9 +3,12 @@ var child_process = require("child_process");
 var path = require("path");
 var tsnodePkg = require("ts-node/package.json");
 
+// Ultimately, a built version of asc should be used.
+// Fow now, this is here so we don't have to recompile on every change.
+
 child_process.spawn("node", [
   path.join("node_modules", "ts-node", path.normalize(tsnodePkg.bin["ts-node"])),
-  "bin/asc.ts"
+  "cli/asc/index.ts"
 ].concat(process.argv.slice(2)), {
   cwd: path.join(__dirname, ".."),
   stdio: "inherit"

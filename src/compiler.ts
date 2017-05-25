@@ -1,13 +1,10 @@
 import * as ts from "byots";
 import * as Long from "long";
-import * as assert from "assert";
 
 import { Profiler } from "./profiler";
 import * as builtins from "./builtins";
 
 import {
-  formatDiagnostics,
-  formatDiagnosticsWithColorAndContext,
   createDiagnosticForNode,
   printDiagnostic
 } from "./diagnostics";
@@ -17,7 +14,6 @@ import {
   WasmSignature,
   WasmStatement,
   WasmExpression,
-  WasmTypeKind,
   WasmType,
   WasmFunctionFlags,
   WasmFunction,
@@ -45,12 +41,12 @@ import {
 const MEM_MAX_32 = (1 << 16) - 1; // 65535 (pageSize) * 65535 (n) ^= 4GB
 
 function isExport(node: ts.Node): boolean {
-  return (node.modifierFlagsCache & ts.ModifierFlags.Export) !== 0;
+  return node && (node.modifierFlagsCache & ts.ModifierFlags.Export) !== 0;
 }
 
 function isImport(node: ts.Node): boolean {
-  if (node.modifiers) // TODO: isn't there a flag for that?
-    for (let i = 0, k = node.modifiers.length; i < k; ++i)
+  if (node && node.modifiers)
+    for (let i = 0, k = node.modifiers.length; i < k; ++i) // TODO: isn't there a flag for that?
       if (node.modifiers[i].kind === ts.SyntaxKind.DeclareKeyword)
         return true;
   return false;
@@ -218,13 +214,13 @@ export class Compiler {
     }
 
     for (let i = 0, k = node.parameters.length; i < k; ++i) {
-      const type = this.resolveType(node.parameters[i].type);
+      const type = this.resolveType(<ts.TypeNode>node.parameters[i].type);
       parameters[index] = type;
       signatureIdentifiers[index] = type.toSignatureIdentifier(this.uintptrType);
       signatureTypes[index++] = type.toBinaryenType(this.uintptrType);
     }
 
-    const returnType = this.resolveType(node.type, true);
+    const returnType = this.resolveType(<ts.TypeNode>node.type, true);
     signatureIdentifiers[index] = returnType.toSignatureIdentifier(this.uintptrType);
 
     const signatureKey = signatureIdentifiers.join("");
@@ -377,15 +373,11 @@ export class Compiler {
   }
 
   compileClass(node: ts.ClassDeclaration): void {
-    const compiler = this;
-    const clazz = node;
-    const name = node.symbol.name;
-
     for (let i = 0, k = node.members.length, member; i < k; ++i) {
       switch ((member = node.members[i]).kind) {
 
         case ts.SyntaxKind.MethodDeclaration:
-          compiler._compileFunction(<ts.MethodDeclaration>member);
+          this._compileFunction(<ts.MethodDeclaration>member);
           break;
 
         // default:

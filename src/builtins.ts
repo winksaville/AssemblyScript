@@ -1,23 +1,10 @@
 import { Compiler } from "./compiler";
 
 import {
-  WasmModule,
-  WasmExpression,
-  WasmType
+  WasmExpression
 } from "./wasm";
 
 import {
-  byteType,
-  sbyteType,
-  shortType,
-  ushortType,
-  intType,
-  uintType,
-  longType,
-  ulongType,
-  uintptrType32,
-  uintptrType64,
-  boolType,
   floatType,
   doubleType
 } from "./types";

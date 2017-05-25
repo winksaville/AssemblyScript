@@ -13,7 +13,7 @@ declare module binaryen {
     addImport(internalName: string, externalModuleName: string, externalBaseName: string, functionType?: Signature): void;
     addExport(internalName: string, externalName: string): void;
     setFunctionTable(funcs: number[]): void;
-    setMemory(initial: number, maximum: number, exportName?: string, segments?: number[]);
+    setMemory(initial: number, maximum: number, exportName?: string, segments?: number[]): void;
     setStart(start: binaryen.Function): void;
 
     emitBinary(): Uint8Array;
