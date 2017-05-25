@@ -52,6 +52,10 @@ function isImport(node: ts.Node): boolean {
   return false;
 }
 
+function isStatic(node: ts.Node): boolean {
+  return (node.modifierFlagsCache & ts.ModifierFlags.Static) !== 0
+}
+
 export class Compiler {
   program: ts.Program;
   checker: ts.TypeChecker;
@@ -185,48 +189,70 @@ export class Compiler {
     // TODO: it seems that binaryen.js does not support globals, yet
   }
 
-  private _initializeFunction(node: ts.FunctionDeclaration | ts.MethodDeclaration, parent?: ts.ClassDeclaration, isInstance: boolean = false): void {
+  private _initializeFunction(node: ts.FunctionDeclaration | ts.MethodDeclaration, parent?: ts.ClassDeclaration): void {
     const name = node.symbol.name;
+    const returnType = this.resolveType(<ts.TypeNode>node.type, true);
 
     if (node.typeParameters && node.typeParameters.length !== 0)
       this.error(node.typeParameters[0], "Type parameters are not supported yet");
 
-    let parameters: WasmType[];
+    let parameterTypes: WasmType[];
     let signatureIdentifiers: string[]; // including return type
     let signatureTypes: number[]; // excluding return type
+    let locals: WasmVariable[];
     let index = 0;
 
-    if (parent && isInstance) {
-      parameters = new Array(node.parameters.length + 1);
-      signatureIdentifiers = new Array(parameters.length + 1);
-      signatureTypes = new Array(parameters.length);
+    if (parent && !isStatic(<ts.MethodDeclaration>node)) {
+
+      parameterTypes = new Array(node.parameters.length + 1);
+      signatureTypes = new Array(parameterTypes.length);
+      signatureIdentifiers = new Array(parameterTypes.length + 1);
+      locals = new Array(parameterTypes.length);
 
       const thisType = this.uintptrType; // TODO: underlyingType
-      parameters[0] = thisType;
-      signatureIdentifiers[0] = thisType.toSignatureIdentifier(this.uintptrType);
+
+      parameterTypes[0] = thisType;
       signatureTypes[0] = thisType.toBinaryenType(this.uintptrType);
+      signatureIdentifiers[0] = thisType.toSignatureIdentifier(this.uintptrType);
+      locals[0] = {
+        name: "this",
+        index: 0,
+        type: thisType
+      };
 
       index = 1;
+
     } else {
-      parameters = new Array(node.parameters.length);
-      signatureIdentifiers = new Array(parameters.length + 1);
-      signatureTypes = new Array(parameters.length);
+
+      parameterTypes = new Array(node.parameters.length);
+      signatureIdentifiers = new Array(parameterTypes.length + 1);
+      signatureTypes = new Array(parameterTypes.length);
+      locals = new Array(parameterTypes.length);
+      index = 0;
     }
 
     for (let i = 0, k = node.parameters.length; i < k; ++i) {
+      const name = node.parameters[i].symbol.name;
       const type = this.resolveType(<ts.TypeNode>node.parameters[i].type);
-      parameters[index] = type;
+
+      parameterTypes[index] = type;
+      signatureTypes[index] = type.toBinaryenType(this.uintptrType);
       signatureIdentifiers[index] = type.toSignatureIdentifier(this.uintptrType);
-      signatureTypes[index++] = type.toBinaryenType(this.uintptrType);
+      locals[index] = {
+        name: name,
+        index: index,
+        type: type
+      };
+
+      ++index;
     }
 
-    const returnType = this.resolveType(<ts.TypeNode>node.type, true);
     signatureIdentifiers[index] = returnType.toSignatureIdentifier(this.uintptrType);
 
-    const signatureKey = signatureIdentifiers.join("");
-    let signature = this.signatures[signatureKey];
+    const signatureId = signatureIdentifiers.join("");
+    let signature = this.signatures[signatureId];
     if (!signature)
-      signature = this.signatures[signatureKey] = this.module.addFunctionType(signatureKey, returnType.toBinaryenType(this.uintptrType), signatureTypes);
+      signature = this.signatures[signatureId] = this.module.addFunctionType(signatureId, returnType.toBinaryenType(this.uintptrType), signatureTypes);
     let flags = 0;
 
     if (isExport(node))
@@ -235,12 +261,14 @@ export class Compiler {
     if (isImport(node))
       flags |= WasmFunctionFlags.import;
 
-    (<any>node).wasmFunction = {
+    (<any>node).wasmFunction = <WasmFunction>{
       name: parent ? parent.symbol.name + "$" + name : name,
-      parameters: parameters,
-      returnType: returnType,
       flags: flags,
-      signature: signature
+      parameterTypes: parameterTypes,
+      returnType: returnType,
+      locals: locals,
+      signature: signature,
+      signatureId: signatureId
     };
   }
 
@@ -262,7 +290,7 @@ export class Compiler {
             this.error(node, "Class methods cannot be exports");
           if (isImport(node))
             this.error(node, "Class methods cannot be imports");
-          this._initializeFunction(<ts.MethodDeclaration>member, node, (node.modifierFlagsCache & ts.ModifierFlags.Static) === 0);
+          this._initializeFunction(<ts.MethodDeclaration>member, node);
           break;
 
         default:
@@ -273,10 +301,12 @@ export class Compiler {
   }
 
   initializeEnum(node: ts.EnumDeclaration): void {
-    const name = node.symbol.name;
+    const enumName = node.symbol.name;
 
     for (let i = 0, k = node.members.length, member; i < k; ++i) {
-      this.constants[name + "$" + node.members[i].symbol.name] = {
+      const name = enumName + "$" + node.members[i].symbol.name;
+      this.constants[name] = {
+        name: name,
         type: intType,
         value: this.checker.getConstantValue(member)
       };
@@ -320,28 +350,54 @@ export class Compiler {
 
   private _compileFunction(node: ts.FunctionDeclaration | ts.MethodDeclaration) {
     const wasmFunction: WasmFunction = (<any>node).wasmFunction;
+    const body: WasmStatement[] = new Array(node.body.statements.length);
+    const locals: WasmVariable[] = [];
     const compiler = this;
-    const locals: { [key: string]: WasmVariable } = {};
-    const op = this.module;
-
-    for (let i = 0, k = node.parameters.length; i < k; ++i) {
-      locals[node.parameters[i].symbol.name] = {
-        index: i,
-        type: wasmFunction.parameters[i]
-      };
-    }
 
     this.currentFunction = wasmFunction;
-    this.currentLocals = locals;
     this.currentBlockIndex = -1;
+    this.currentLocals = {};
 
-    const body: WasmStatement[] = new Array(node.body.statements.length);
-    let index = 0;
+    let bodyIndex = 0;
+    let localIndex = 0;
 
-    for (let i = 0, k = node.body.statements.length; i < k; ++i)
-      body[i] = compiler.compileStatement(node.body.statements[i]);
+    for (let i = 0, k = wasmFunction.locals.length; i < k; ++i) {
+      const local = wasmFunction.locals[i];
+      this.currentLocals[local.name] = local;
+      ++localIndex;
+    }
 
-    return this.module.addFunction(wasmFunction.name, wasmFunction.signature, [], op.block("", body));
+    for (let i = 0, k = node.body.statements.length; i < k; ++i) {
+      const stmt = compiler.compileStatement(node.body.statements[i], onVariable);
+      if (stmt !== null)
+        body[bodyIndex++] = stmt;
+    }
+
+    body.length = bodyIndex;
+
+    function onVariable(node: ts.VariableDeclaration): number {
+      const name = node.name.getText();
+      const type = (<any>node).wasmType;
+
+      if (compiler.currentLocals[name]) {
+
+        compiler.error(node, "Local variable shadows another variable of the same name in a parent scope", name);
+
+      } else {
+
+        compiler.currentLocals[name] = {
+          name: name,
+          index: localIndex,
+          type: type
+        };
+      }
+
+      locals.push(type.toBinaryenType());
+
+      return localIndex++;
+    }
+
+    return this.module.addFunction(wasmFunction.name, wasmFunction.signature, locals, this.module.block("", body));
   }
 
   compileFunction(node: ts.FunctionDeclaration): void {
@@ -386,18 +442,35 @@ export class Compiler {
     }
   }
 
-  compileStatement(node: ts.Statement): WasmStatement {
+  compileStatement(node: ts.Statement, onVariable?: (node: ts.VariableDeclaration) => number): WasmStatement {
     const op = this.module;
 
     switch (node.kind) {
+
+      case ts.SyntaxKind.VariableStatement:
+      {
+        const stmt = <ts.VariableStatement>node;
+        const initializers: WasmExpression[] = [];
+        for (let i = 0, k = stmt.declarationList.declarations.length; i < k; ++i) {
+          const decl = stmt.declarationList.declarations[i];
+          const type = this.resolveType(decl.type);
+          (<any>decl).wasmType = type;
+          const index = onVariable(decl);
+          if (decl.initializer)
+            initializers.push(op.setLocal(index, this.compileExpression(decl.initializer, type)));
+        }
+        return initializers.length === 0 ? null
+             : initializers.length === 1 ? initializers[0]
+             : op.block("", initializers); // TODO: Unfold
+      }
 
       case ts.SyntaxKind.IfStatement:
       {
         const stmt = <ts.IfStatement>node;
         return op.if(
           this.convertValue(stmt.expression, this.compileExpression(stmt.expression, intType), (<any>stmt.expression).wasmType, intType, true),
-          this.compileStatement(stmt.thenStatement),
-          stmt.elseStatement ? this.compileStatement(stmt.elseStatement) : undefined
+          this.compileStatement(stmt.thenStatement, onVariable),
+          stmt.elseStatement ? this.compileStatement(stmt.elseStatement, onVariable) : undefined
         );
       }
 
@@ -431,7 +504,7 @@ export class Compiler {
         const stmt = <ts.WhileStatement>node;
         return op.loop("break$" + this.currentBlockIndex, op.block("continue$" + this.currentBlockIndex, [
           op.break("break$" + this.currentBlockIndex, op.i32.eqz(this.convertValue(stmt.expression, this.compileExpression(stmt.expression, intType), (<any>stmt.expression).wasmType, intType, true))),
-          this.compileStatement(stmt.statement)
+          this.compileStatement(stmt.statement, onVariable)
         ]));
       }
 
@@ -440,7 +513,7 @@ export class Compiler {
         ++this.currentBlockIndex;
         const stmt = <ts.WhileStatement>node;
         return op.loop("break$" + this.currentBlockIndex, op.block("continue$" + this.currentBlockIndex, [
-          this.compileStatement(stmt.statement),
+          this.compileStatement(stmt.statement, onVariable),
           op.break("break$" + this.currentBlockIndex, op.i32.eqz(this.convertValue(stmt.expression, this.compileExpression(stmt.expression, intType), (<any>stmt.expression).wasmType, intType, true)))
         ]));
       }
@@ -451,11 +524,11 @@ export class Compiler {
         if (stmt.statements.length === 0)
           return op.nop();
         else if (stmt.statements.length === 1)
-          return this.compileStatement(stmt.statements[0]);
+          return this.compileStatement(stmt.statements[0], onVariable);
         else {
           const children: WasmStatement[] = new Array(stmt.statements.length);
           for (let i = 0, k = children.length; i < k; ++i)
-            children[i] = this.compileStatement(stmt.statements[i]);
+            children[i] = this.compileStatement(stmt.statements[i], onVariable);
           return op.block("", children);
         }
       }

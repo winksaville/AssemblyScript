@@ -212,18 +212,22 @@ export enum WasmFunctionFlags {
 
 export interface WasmFunction {
   name: string,
-  parameters: WasmType[],
-  returnType: WasmType,
   flags: WasmFunctionFlags,
-  signature: binaryen.Signature
+  parameterTypes: WasmType[],
+  returnType: WasmType,
+  locals: WasmVariable[],
+  signature: binaryen.Signature,
+  signatureId: string
 }
 
 export interface WasmVariable {
+  name: string,
   index: number,
   type: WasmType
 }
 
 export interface WasmConstant {
+  name: string,
   type: WasmType,
   value: any
 }

@@ -65,7 +65,7 @@ Type      | WASM type | Description
 `void`    | none      | No return type.
 `Ptr<T>`  | i32 / i64 | A pointer of type `uintptr` with underlying type `T`.
 
-WebAssembly-specific operations are available as built-in functions:
+WebAssembly-specific operations are available as built-in functions that translate to the respective opcode directly:
 
 Function                                   | OpCode
 -------------------------------------------|----------
