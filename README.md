@@ -96,15 +96,39 @@ Function                                   | OpCode
 `max(left: double, right: double): double` | f64.max
 `maxf(left: float, right: float): float`   | f32.max
 
-Type coercion requires an explicit cast where precision is lost respectively is implicit where precision is maintained. For example, to cast a `double` to an `int`, one would write `(someIntValue as double)` which then translates to the respective opcode(s).
+Type coercion requires an explicit cast where precision is lost respectively is implicit where precision is maintained. For example, to cast a `double` to an `int`:
 
-Imports are `declare`d, exports `export`ed.
+```ts
+function example(value: double): int {
+  return value as int; // translates to the respective opcode(s)
+}
+```
 
-There is exactly one entry file that is examined for global exports.
+Imports are `declare`d, exports `export`ed. The exports of the entry file (the file specified when calling `asc` or `Compiler.compile`) become global WebAssembly exports.
 
-Currently, imports can be pulled from different namespaces by separating the namespace and the function with a `$` character, for example `declare function console$log(...): void`.
+```ts
+import { myOtherExportThatDoesntBecomeAWebAssemblyExport } from "./imported";
+
+declare function myImport(): void;
+
+export function myExport(): void {
+  myOtherExportThatDoesntBecomeAWebAssemblyExport();
+}
+```
+
+Currently, imports can also be pulled from different namespaces by separating the namespace and the function with a `$` character.
+
+```ts
+declare function Math$random(): double;
+```
 
 Naming a function `start` with no arguments and a `void` return type will automatically make it the start function that is being called on load even before returning to the embedder.
+
+```ts
+function start(): void {
+  ...
+}
+```
 
 Command line
 ------------
