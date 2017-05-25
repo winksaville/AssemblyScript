@@ -87,7 +87,7 @@ declare module binaryen {
       store8(offset: number, align: number, ptr: number, value: I64Expression): I64Expression,
       store16(offset: number, align: number, ptr: number, value: I64Expression): I64Expression,
       store32(offset: number, align: number, ptr: number, value: I64Expression): I64Expression,
-      const(low: number, right: number): I64Expression;
+      const(low: number, high: number): I64Expression;
       clz(value: I64Expression): I64Expression;
       ctz(value: I64Expression): I64Expression;
       popcnt(value: I64Expression): I64Expression;

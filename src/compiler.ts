@@ -967,9 +967,172 @@ export class Compiler {
 
             }
           }
+
+          case ts.SyntaxKind.PlusPlusToken:
+          {
+            if (unaryNode.operand.kind === ts.SyntaxKind.Identifier) {
+
+              const local = this.currentLocals[(<ts.Identifier>unaryNode.operand).text];
+              if (local) {
+
+                if (local.type.isLong) {
+                  return op.teeLocal(
+                    local.index,
+                    op.i64.add(
+                      unaryExpr,
+                      op.i64.const(1, 0)
+                    )
+                  );
+
+                } else if (!local.type.isFloat) {
+
+                  return op.teeLocal(
+                    local.index,
+                    op.i32.add(
+                      unaryExpr,
+                      op.i32.const(1)
+                    )
+                  );
+
+                }
+              }
+            }
+          }
+
+          case ts.SyntaxKind.MinusMinusToken:
+          {
+            if (unaryNode.operand.kind === ts.SyntaxKind.Identifier) {
+
+              const local = this.currentLocals[(<ts.Identifier>unaryNode.operand).text];
+              if (local) {
+
+                if (local.type.isLong) {
+                  return op.teeLocal(
+                    local.index,
+                    op.i64.sub(
+                      op.getLocal(
+                        local.index,
+                        local.type.toBinaryenType(this.uintptrType)
+                      ),
+                      op.i64.const(1, 0)
+                    )
+                  );
+
+                } else if (!local.type.isFloat) {
+
+                  return op.teeLocal(
+                    local.index,
+                    op.i32.sub(
+                      op.getLocal(
+                        local.index,
+                        local.type.toBinaryenType(this.uintptrType)
+                      ),
+                      op.i32.const(1)
+                    )
+                  );
+
+                }
+              }
+            }
+          }
         }
 
-        this.error(unaryNode, "Unsupported unary operation", ts.SyntaxKind[unaryNode.operator]);
+        this.error(unaryNode, "Unsupported unary prefix operation", ts.SyntaxKind[unaryNode.operator]);
+        return unaryExpr;
+      }
+
+      case ts.SyntaxKind.PostfixUnaryExpression:
+      {
+        const unaryNode = <ts.PostfixUnaryExpression>node;
+        const unaryExpr = this.compileExpression(unaryNode.operand, contextualType);
+
+        (<any>node).wasmType = (<any>unaryExpr).wasmType;
+
+        if (unaryNode.operand.kind === ts.SyntaxKind.Identifier) {
+
+          const local = this.currentLocals[(<ts.Identifier>unaryNode.operand).text];
+          if (local) {
+
+            switch (unaryNode.operator) {
+
+              // TODO: this isn't optimal (i.e. can save an operation when using a temporary var)
+
+              case ts.SyntaxKind.PlusPlusToken:
+
+                if (local.type.isLong) {
+
+                  return op.i64.sub(
+                    op.teeLocal(
+                      local.index,
+                      op.i64.add(
+                        op.getLocal(
+                          local.index,
+                          local.type.toBinaryenType(this.uintptrType)
+                        ),
+                        op.i64.const(1, 0)
+                      )
+                    ),
+                    op.i64.const(1, 0)
+                  );
+
+                } else if (!local.type.isFloat) {
+
+                  return op.i32.sub(
+                    op.teeLocal(
+                      local.index,
+                      op.i32.add(
+                        op.getLocal(
+                          local.index,
+                          local.type.toBinaryenType(this.uintptrType)
+                        ),
+                        op.i32.const(1)
+                      )
+                    ),
+                    op.i32.const(1)
+                  );
+
+                }
+
+              case ts.SyntaxKind.MinusMinusToken:
+
+                if (local.type.isLong) {
+
+                  return op.i64.add(
+                    op.teeLocal(
+                      local.index,
+                      op.i64.sub(
+                        op.getLocal(
+                          local.index,
+                          local.type.toBinaryenType(this.uintptrType)
+                        ),
+                        op.i64.const(1, 0)
+                      )
+                    ),
+                    op.i64.const(1, 0)
+                  );
+
+                } else if (!local.type.isFloat) {
+
+                  return op.i32.add(
+                    op.teeLocal(
+                      local.index,
+                      op.i32.sub(
+                        op.getLocal(
+                          local.index,
+                          local.type.toBinaryenType(this.uintptrType)
+                        ),
+                        op.i32.const(1)
+                      )
+                    ),
+                    op.i32.const(1)
+                  );
+
+                }
+            }
+          }
+        }
+
+        this.error(unaryNode, "Unsupported unary postfix operation", ts.SyntaxKind[unaryNode.operator]);
         return unaryExpr;
       }
 
