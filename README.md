@@ -98,7 +98,13 @@ Function                                   | OpCode
 
 Type coercion requires an explicit cast where precision is lost respectively is implicit where precision is maintained. For example, to cast a `double` to an `int`, one would write `(someIntValue as double)` which then translates to the respective opcode(s).
 
-Imports are `declare`d, exports `export`ed. There is exactly one entry file that is examined for global exports. Currently, imports can be pulled from different namespaces by separating the namespace and the function with a `$` character, for example `declare function console$log(...): void`.
+Imports are `declare`d, exports `export`ed.
+
+There is exactly one entry file that is examined for global exports.
+
+Currently, imports can be pulled from different namespaces by separating the namespace and the function with a `$` character, for example `declare function console$log(...): void`.
+
+Naming a function `start` will automatically make it the start function.
 
 Command line
 ------------

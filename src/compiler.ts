@@ -41,12 +41,16 @@ import {
 const MEM_MAX_32 = (1 << 16) - 1; // 65535 (pageSize) * 65535 (n) ^= 4GB
 
 function isExport(node: ts.Node): boolean {
-  return node && (node.modifierFlagsCache & ts.ModifierFlags.Export) !== 0;
+  if (node && node.modifiers)
+    for (let i = 0, k = node.modifiers.length; i < k; ++i)
+      if (node.modifiers[i].kind === ts.SyntaxKind.ExportKeyword)
+        return true;
+  return false;
 }
 
 function isImport(node: ts.Node): boolean {
   if (node && node.modifiers)
-    for (let i = 0, k = node.modifiers.length; i < k; ++i) // TODO: isn't there a flag for that?
+    for (let i = 0, k = node.modifiers.length; i < k; ++i)
       if (node.modifiers[i].kind === ts.SyntaxKind.DeclareKeyword)
         return true;
   return false;
@@ -59,6 +63,7 @@ function isStatic(node: ts.Node): boolean {
 export class Compiler {
   program: ts.Program;
   checker: ts.TypeChecker;
+  entryFile: ts.SourceFile;
   diagnostics: ts.DiagnosticCollection;
   uintptrType: WasmType;
   module: WasmModule;
@@ -70,6 +75,7 @@ export class Compiler {
   currentBlockIndex: -1;
 
   static compile(filename: string): WasmModule {
+
     let program = ts.createProgram([ __dirname + "/../assembly.d.ts", filename ], {
       target: ts.ScriptTarget.Latest,
       module: ts.ModuleKind.None,
@@ -124,6 +130,15 @@ export class Compiler {
     this.diagnostics = ts.createDiagnosticCollection();
     this.module = new WasmModule();
     this.uintptrType = uintptrSize === 4 ? uintptrType32 : uintptrType64;
+
+    // the last non-declaration source file is assumed to be the entry file (TODO: does this work in all cases?)
+    const sourceFiles = program.getSourceFiles();
+    for (let i = sourceFiles.length - 1; i >= 0; --i) {
+      if (sourceFiles[i].isDeclarationFile)
+        continue;
+      this.entryFile = sourceFiles[i];
+      break;
+    }
   }
 
   info(node: ts.Node, message: string, arg1?: string): void {
@@ -158,6 +173,9 @@ export class Compiler {
 
       for (let i = 0, k = file.statements.length, statement; i < k; ++i) {
         switch ((statement = file.statements[i]).kind) {
+
+          case ts.SyntaxKind.ImportDeclaration:
+            break;
 
           case ts.SyntaxKind.VariableStatement:
             compiler.initializeVariable(<ts.VariableStatement>statement);
@@ -257,7 +275,7 @@ export class Compiler {
     if (!signature)
       signature = this.signatures[signatureId] = this.module.addFunctionType(signatureId, returnType.toBinaryenType(this.uintptrType), signatureTypes);
 
-    if (isExport(node))
+    if (isExport(node) && node.getSourceFile() === this.entryFile)
       flags |= WasmFunctionFlags.export;
 
     if (isImport(node))
@@ -281,22 +299,25 @@ export class Compiler {
   initializeClass(node: ts.ClassDeclaration): void {
     const name = node.symbol.name;
 
-    for (let i = 0, k = node.members.length, member; i < k; ++i) {
-      switch ((member = node.members[i]).kind) {
+    for (let i = 0, k = node.members.length; i < k; ++i) {
+      const member = node.members[i];
+      switch (member.kind) {
 
         case ts.SyntaxKind.Identifier:
           break;
 
         case ts.SyntaxKind.MethodDeclaration:
-          if (isExport(node))
-            this.error(node, "Class methods cannot be exports");
-          if (isImport(node))
-            this.error(node, "Class methods cannot be imports");
+          if (isExport(member))
+            this.error(member, "Class methods cannot be exports");
+
+          if (isImport(member))
+            this.error(member, "Class methods cannot be imports");
+
           this._initializeFunction(<ts.MethodDeclaration>member, node);
           break;
 
         default:
-          this.error(node, "Unsupported class member", ts.SyntaxKind[node.kind]);
+          this.error(member, "Unsupported class member", ts.SyntaxKind[node.kind]);
 
       }
     }
