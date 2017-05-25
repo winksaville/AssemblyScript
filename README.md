@@ -1,8 +1,8 @@
 AssemblyScript
 ==============
-A subset of [TypeScript](https://github.com/Microsoft/TypeScript) that compiles to [WebAssembly](http://webassembly.org/).
+AssemblyScript defines a subset of [TypeScript](https://github.com/Microsoft/TypeScript) that it compiles to [WebAssembly](http://webassembly.org/). The compiler itself is written in TypeScript and no binary dependencies are required to get started. Under the hood, it rewires TypeScript's [compiler API](https://github.com/Microsoft/TypeScript-wiki/blob/master/Using-the-Compiler-API.md) to [binaryen](https://github.com/WebAssembly/binaryen)'s compiler infrastructure.
 
-Be warned that this is an early prototype and that it cannot do anything useful yet. Under the hood, it rewires TypeScript's [compiler API](https://github.com/Microsoft/TypeScript-wiki/blob/master/Using-the-Compiler-API.md) to [binaryen](https://github.com/WebAssembly/binaryen)'s compiler infrastructure.
+Be warned that this is an early prototype and that it cannot do anything useful yet.
 
 Example
 -------
@@ -104,9 +104,11 @@ function example(value: double): int {
 }
 ```
 
-Imports are `declare`d, exports `export`ed. The exports of the entry file (the file specified when calling `asc` or `Compiler.compile`) become global WebAssembly exports.
+Global WebAssembly imports are `declare`d and WebAssembly exports `export`ed from the entry file (the file specified when calling `asc` or `Compiler.compile`). Aside from that, imports and exports work just like in TypeScript.
 
 ```ts
+// entry.ts
+
 import { myOtherExportThatDoesntBecomeAWebAssemblyExport } from "./imported";
 
 declare function myImport(): void;
