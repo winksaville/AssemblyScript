@@ -104,7 +104,7 @@ There is exactly one entry file that is examined for global exports.
 
 Currently, imports can be pulled from different namespaces by separating the namespace and the function with a `$` character, for example `declare function console$log(...): void`.
 
-Naming a function `start` will automatically make it the start function.
+Naming a function `start` with no arguments and a `void` return type will automatically make it the start function that is being called on load even before returning to the embedder.
 
 Command line
 ------------

@@ -447,7 +447,7 @@ export class Compiler {
     if ((node.modifierFlagsCache & ts.ModifierFlags.Export) != 0)
       this.module.addExport(name, name);
 
-    if (name === "start")
+    if (name === "start" && wasmFunction.parameterTypes.length === 0 && wasmFunction.returnType === voidType)
       this.module.setStart(func);
   }
 

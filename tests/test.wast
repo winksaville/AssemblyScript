@@ -6,6 +6,7 @@
  (memory $0 256)
  (export "memory" (memory $0))
  (export "add" (func $add))
+ (start $start)
  (func $Hello$world (type $iii) (param $0 i32) (param $1 i32) (result i32)
   (local $2 i32)
   (call $Hello$anotherVoid
@@ -47,5 +48,7 @@
     (i32.const 16)
    )
   )
+ )
+ (func $start (type $v)
  )
 )
