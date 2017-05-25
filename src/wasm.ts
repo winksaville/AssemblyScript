@@ -31,8 +31,8 @@ export class WasmType {
   kind: WasmTypeKind;
   size: number;
   underlyingType: WasmType;
-  mask32: number;
   shift32: number;
+  mask32: number;
 
   constructor(kind: WasmTypeKind, size: number, underlyingType: WasmType = null) {
     this.kind = kind;
@@ -40,8 +40,8 @@ export class WasmType {
     this.underlyingType = underlyingType;
 
     if (this.isByte || this.isShort) {
-      this.mask32 = (size << 8) - 1;
       this.shift32 = 32 - (size << 3);
+      this.mask32 =  ~0 >>> this.shift32;
     } else if (this.kind == WasmTypeKind.bool) {
       this.mask32 = 1;
       this.shift32 = 31;

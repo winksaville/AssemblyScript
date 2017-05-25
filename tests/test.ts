@@ -7,7 +7,7 @@ export function add(a: int, b: double): short {
   a--;
   ++a;
   --a;
-  return (a + (b as int)) as short;
+  return (a + (b as uint)) as short;
 }
 
 function start(): void {

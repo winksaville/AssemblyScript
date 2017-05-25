@@ -979,20 +979,26 @@ export class Compiler {
                   return op.teeLocal(
                     local.index,
                     op.i64.add(
-                      unaryExpr,
+                      op.getLocal(
+                        local.index,
+                        local.type.toBinaryenType(this.uintptrType)
+                      ),
                       op.i64.const(1, 0)
                     )
                   );
 
                 } else if (!local.type.isFloat) {
 
-                  return op.teeLocal(
+                  return this.convertValue(unaryNode, op.teeLocal(
                     local.index,
                     op.i32.add(
-                      unaryExpr,
+                      op.getLocal(
+                        local.index,
+                        local.type.toBinaryenType(this.uintptrType)
+                      ),
                       op.i32.const(1)
                     )
-                  );
+                  ), intType, local.type, true);
 
                 }
               }
@@ -1020,7 +1026,7 @@ export class Compiler {
 
                 } else if (!local.type.isFloat) {
 
-                  return op.teeLocal(
+                  return this.convertValue(unaryNode, op.teeLocal(
                     local.index,
                     op.i32.sub(
                       op.getLocal(
@@ -1029,7 +1035,7 @@ export class Compiler {
                       ),
                       op.i32.const(1)
                     )
-                  );
+                  ), intType, local.type, true)
 
                 }
               }
@@ -1077,7 +1083,7 @@ export class Compiler {
 
                 } else if (!local.type.isFloat) {
 
-                  return op.i32.sub(
+                  return this.convertValue(unaryNode, op.i32.sub(
                     op.teeLocal(
                       local.index,
                       op.i32.add(
@@ -1089,7 +1095,7 @@ export class Compiler {
                       )
                     ),
                     op.i32.const(1)
-                  );
+                  ), intType, local.type, true);
 
                 }
 
@@ -1113,7 +1119,7 @@ export class Compiler {
 
                 } else if (!local.type.isFloat) {
 
-                  return op.i32.add(
+                  return this.convertValue(unaryNode, op.i32.add(
                     op.teeLocal(
                       local.index,
                       op.i32.sub(
@@ -1125,7 +1131,7 @@ export class Compiler {
                       )
                     ),
                     op.i32.const(1)
-                  );
+                  ), intType, local.type, true)
 
                 }
             }
@@ -1563,12 +1569,13 @@ export class Compiler {
 
     // int to other int
 
-    if (fromType.size < toType.size)
+    if (fromType.size < toType.size || toType.isInt)
       return expr;
 
     if (!explicit) illegalImplicitConversion();
 
     if (toType.isSigned) {
+
       return op.i32.shl(
         op.i32.shr_s(
           expr,
@@ -1576,11 +1583,14 @@ export class Compiler {
         ),
         op.i32.const(toType.shift32)
       );
+
     } else {
+
       return op.i32.and(
         expr,
         op.i32.const(toType.mask32)
       );
+
     }
   }
 
